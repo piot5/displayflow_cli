@@ -87,7 +87,3 @@ This tool includes an opt-in telemetry system to identify failing Win32 GDI call
 
 * **Rust & Windows-RS**: For memory-safe Win32 API interactions.
 * **GitHub Actions**: For secure, automated binary releases.
-
-**Would you like me to help you set up a "Releases" description on GitHub that uses this new documentation as a template?**
-
-```
