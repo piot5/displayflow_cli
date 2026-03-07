@@ -33,7 +33,7 @@ The tool will prompt you to press a key combination (e.g., Ctrl+Alt+G) to create
 3. Dual-Head Office Setup
 Bash
 
-displayflow.exe "1:1920:1080:0:0:1:0 2:1920:1080:1920:0:0:0" save:Office
+displayflow.exe "1:1920:1080:0:0:1:0 2:1920:1080:1920:0:0:0 3:0:0:0:0:0:0" save:Office (to disable display all fields to 0)
 
  Telemetry for Improvement
 
