@@ -1,8 +1,7 @@
 ## Header
 
 * **Project**: DisplayFlow CLI
-* **Version**: v0.9.2 (Final documentation build)
-* **Objective**: Comprehensive technical manual including the `post:exe` automation layer.
+* **Version**: v0.9.2
 
 
 ## README.md
