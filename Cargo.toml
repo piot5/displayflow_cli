@@ -1,0 +1,46 @@
+﻿[package]
+name = "displayflow"
+version = "5.1.0"
+edition = "2021"
+authors = ["YourName"]
+description = "Persistent Monitor Profile Manager for Windows"
+
+[dependencies]
+# Windows API Anbindungen
+windows = { version = "0.52", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_HiDpi",
+    "Win32_Devices_Display",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+# Registry Zugriff für Monitor-IDs
+winreg = "0.52"
+
+# JSON Serialisierung (für mapping.json und Telemetrie)
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Networking für Supabase Telemetrie
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+
+# System-Informationen für Hardware-Hash
+sysinfo = "0.30"
+
+# Zeitstempel
+chrono = "0.4"
+
+# Sicherheit (Hashing des Device-Fingerprints)
+sha2 = "0.10"
+
+[profile.release]
+# --- Optimierungen für den GitHub-Release ---
+
+opt-level = "z"      # Auf Dateigröße optimieren (statt nur auf Speed)
+lto = true           # Link Time Optimization (macht das Binary kompakter)
+codegen-units = 1    # Erlaubt bessere Optimierungen auf Kosten der Compile-Zeit
+panic = "abort"      # Entfernt Stack-Unwinding Code (verkleinert die EXE deutlich)
+strip = true         # Entfernt automatisch alle Debug-Symbole und Zeilen aus der EXE
