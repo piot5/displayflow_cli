@@ -2,13 +2,16 @@ name: Rust Build and Release
 
 on:
   push:
-    branches: [ "main" ] # Startet den Build bei jedem Push auf Main
-  workflow_dispatch:      # Ermöglicht manuellen Start über das GitHub UI
+    tags:
+      - 'v*' # Startet den Prozess, wenn du einen Tag wie v1.0.0 pushst
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build Windows Binary
+    name: Build and Release
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -19,14 +22,34 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: Build Release
-        # Hier wird das Secret aus GitHub in die Umgebung injiziert
+      - name: Build Main Binary (DisplayFlow)
         env:
           SB_API_KEY: ${{ secrets.SB_API_KEY }}
-        run: cargo build --release
+        run: cargo build --release # Hier wird die displayflow.exe aus der src gebaut
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - name: Bundle Suite
+        shell: pwsh
+        run: |
+          # 1. Zielordner erstellen
+          New-Item -ItemType Directory -Force -Path ./publish
+          
+          # 2. Die frisch gebaute EXE kopieren
+          Copy-Item "target/release/displayflow.exe" -Destination "./publish/"
+          
+          # 3. Die statischen Begleitdateien kopieren (müssen im Repo-Root liegen)
+          if (Test-Path "screen_animation.exe") { 
+            Copy-Item "screen_animation.exe" -Destination "./publish/" 
+          }
+          if (Test-Path "DF.ico") { 
+            Copy-Item "DF.ico" -Destination "./publish/" 
+          }
+          
+          # 4. Alles als ZIP packen
+          Compress-Archive -Path ./publish/* -DestinationPath ./displayflow_v1.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: DisplayFlow-exe
-          path: target/release/displayflow.exe
+          files: displayflow_v1.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
