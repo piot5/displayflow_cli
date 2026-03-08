@@ -17,7 +17,7 @@ fn main() {
     let tel_manager = TelemetryManager::new(telemetry_enabled);
     let engine = DFEngine::new();
 
-    // INTERAKTIVER MODUS (SCAN)
+    
     if args.len() < 2 || (args.len() == 2 && telemetry_enabled) {
         print_header();
         
@@ -64,7 +64,7 @@ fn main() {
         return;
     }
 
-    // CLI MODUS (CONFIGURATION PARSING)
+    
     let mut tasks = Vec::new();
     let mut save_name = None;
     let mut use_hotkey = false;
@@ -106,24 +106,24 @@ fn main() {
         process::exit(1);
     }
 
-    // --- PHASE 1: HOTKEY ABFRAGE (BLOCKIEREND) ---
+    
     if use_hotkey {
         if !is_silent { 
-            println!("\n[WAIT] Bereit. Drücken Sie den Hotkey, um die Konfiguration anzuwenden..."); 
+            println!("\n[WAIT] Ready.Push Hotkey..."); 
             let _ = io::stdout().flush();
         }
         // Capture once and store the result
         captured_hk = DeploymentManager::capture_hotkey_physical();
         
-        if !is_silent { println!("[SIGNAL] Hotkey erkannt."); }
+        if !is_silent { println!("[SIGNAL] Hotkey set."); }
     }
 
     // --- PHASE 2: SYSTEM ANALYSIS ---
     let pre_inv = engine.full_scan_discovery();
 
-    // --- PHASE 3: EXECUTION (Hardware-Schaltung) ---
+    // --- PHASE 3: EXECUTION (Hardware-Config) ---
     if !is_silent { 
-        println!("[EXEC] Monitor-Konfiguration wird angewendet..."); 
+        println!("[EXEC] Success..."); 
     }
     
     engine.execute_integrated(tasks.clone());
@@ -136,16 +136,16 @@ fn main() {
     if let Some(name) = save_name {
         // Pass the already captured hotkey string to the manager
         match DeploymentManager::create_suite(&name, &tasks, captured_hk, post_cmd) {
-            Ok(_) => { if !is_silent { println!("[OK] Shortcut erstellt."); } },
-            Err(e) => { eprintln!("[ERROR] Deployment fehlgeschlagen: {}", e); }
+            Ok(_) => { if !is_silent { println!("[OK] Shortcut ready."); } },
+            Err(e) => { eprintln!("[ERROR] Deployment aborted: {}", e); }
         }
     }
     
-    if !is_silent { println!("[DONE] Vorgang abgeschlossen."); }
+    if !is_silent { println!("[DONE] All Done."); }
 }
 
 fn print_header() {
     println!("====================================================");
-    println!("                   DISPLAYFLOW v5.1                 ");
+    println!("                   DISPLAYFLOW v0.93                 ");
     println!("====================================================");
 }

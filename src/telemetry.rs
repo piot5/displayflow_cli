@@ -7,7 +7,6 @@ use sha2::{Sha256, Digest};
 use sysinfo::System; 
 use serde_json::json;
 
-// Imports structures for data mapping from the scraper module
 use crate::scraper::{DisplayRow, DisplayTask};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -33,7 +32,7 @@ pub struct TelemetryManager {
 }
 
 impl TelemetryManager {
-    /// Creates a new manager and cleans up old local data.
+    
     pub fn new(enabled: bool) -> Self {
         let manager = Self {
             enabled,
@@ -45,8 +44,7 @@ impl TelemetryManager {
         manager
     }
 
-    /// Generates a SHA-256 hash from hardware features (CPU & Total Memory).
-    /// This serves for anonymous recognition of hardware configurations without personal reference.
+    
     fn generate_device_hash() -> String {
         let mut sys = System::new_all();
         sys.refresh_all();
@@ -61,7 +59,6 @@ impl TelemetryManager {
         format!("{:x}", hasher.finalize())
     }
 
-    /// Collects the current system state and sends it (if enabled) to the backend.
     pub fn collect_system_state(
         &self, 
         action: &str, 
@@ -86,14 +83,14 @@ impl TelemetryManager {
             tasks_executed: tasks.len(),
         };
 
-        // Save locally (Backup/Log)
+       
         let _ = self.log_locally(&payload);
         
-        // Remote upload to Supabase
+        
         self.upload_to_supabase(&payload);
     }
 
-    /// Writes telemetry data to a local JSON file.
+    
     fn log_locally(&self, payload: &TelemetryPayload) -> std::io::Result<()> {
         let mut file = OpenOptions::new()
             .create(true)
@@ -104,17 +101,14 @@ impl TelemetryManager {
         writeln!(file, "{}", json_line)
     }
 
-    /// Sends data to the Supabase REST API.
-    /// Uses env! to securely include the API key at compile time.
+    
     fn upload_to_supabase(&self, payload: &TelemetryPayload) {
         let client = reqwest::blocking::Client::new();
         
-        // Your Supabase project URL
+        
         let url = "https://pbuloekdtjpuiehbfypz.supabase.co/rest/v1/telemetry";
         
-        // SECURITY: The key is no longer stored as plaintext here!
-        // You must set the SB_API_KEY environment variable during the build.
-        // PowerShell: $env:SB_API_KEY="your_key"; cargo build --release
+        
         let api_key = env!("SB_API_KEY");
 
         let body = json!({
@@ -138,7 +132,7 @@ impl TelemetryManager {
         }
     }
 
-    /// Deletes local telemetry files older than 30 days to save space.
+    
     fn cleanup_old_data(&self) {
         let path = Path::new(&self.storage_path);
         if let Ok(metadata) = fs::metadata(path) {

@@ -1,18 +1,18 @@
-# Rust/Cargo Build Artefakte
+
 /target/
 Cargo.lock
 
-# Lokale Konfigurations- und Mapping-Daten
+
 mapping.json
 telemetry_improvement.json
 .env
 
-# Generierte Deployment-Scripte (Desktop-Shortcuts)
+
 **/*.bat
 **/*.vbs
 **/*.rs.bk
 
-# IDE Spezifisch
+
 .vscode/
 .idea/
 *.swp

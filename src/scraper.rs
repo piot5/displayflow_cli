@@ -29,6 +29,5 @@ pub struct DisplayTask {
     pub direction: Option<String>,
 }
 
-// Re-exports for backward compatibility with main.rs and engine.rs
 pub use scan::set_dpi_awareness;
 pub use synth::collect_inventory;

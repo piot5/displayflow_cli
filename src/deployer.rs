@@ -18,7 +18,7 @@ impl DeploymentManager {
         let vbs_path = current_dir.join(format!("{}.vbs", base_name));
         let icon_path = current_dir.join("DF.ico");
 
-        // Generierung der Display-Parameter (ID:W:H:X:Y:P:R)
+        
         let args = tasks.iter().map(|t| {
             let rot = t.direction.as_deref().unwrap_or("0");
             format!("\"{}:{}:{}:{}:{}:{}:{}\"", 
@@ -26,14 +26,14 @@ impl DeploymentManager {
                 if t.is_primary { 1 } else { 0 }, rot)
         }).collect::<Vec<_>>().join(" ");
 
-        // Batch-Inhalt: Dynamische Pfade via %~dp0 und Wegfall der Flags
+        
         let mut bat_content = String::from("@echo off\n\n");
         
-        // Animation Startsequenz
-        bat_content.push_str("start \"\" \"%~dp0screen_animation.exe\" -d left left\n");
+        
+        bat_content.push_str("start \"\" \"%~dp0screen_animation.exe\" -d left right\n");
         bat_content.push_str("powershell -command \"Start-Sleep -Milliseconds 3200\"\n\n");
         
-        // Hauptaufruf Displayflow (Keine Flags wie --silent oder --hotkey)
+        
         bat_content.push_str(&format!("\"%~dp0displayflow.exe\" {}\n", args));
         
         if let Some(cmd) = post_cmd { 
@@ -49,7 +49,7 @@ impl DeploymentManager {
         );
         fs::write(&vbs_path, vbs_content)?;
 
-        // Shortcut-Erstellung auf dem Desktop (falls Hotkey vorhanden)
+        
         if let Some(hk_string) = hotkey_string {
             Self::create_desktop_shortcut(
                 base_name, 

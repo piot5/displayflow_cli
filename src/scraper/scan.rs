@@ -18,7 +18,6 @@ pub fn set_dpi_awareness() {
     unsafe { let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); }
 }
 
-/// Scans currently active GDI displays
 pub fn scan_gdi_live() -> Vec<DisplayRow> {
     let mut rows = Vec::new();
     unsafe {
@@ -65,7 +64,6 @@ pub fn scan_gdi_live() -> Vec<DisplayRow> {
     rows
 }
 
-/// Reads monitor information from the Windows Registry (EDID)
 pub fn scan_registry_monitors() -> Vec<DisplayRow> {
     let mut results = Vec::new();
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);

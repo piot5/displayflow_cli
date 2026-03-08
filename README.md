@@ -1,23 +1,23 @@
 ## Header
 
-* **Project**: DisplayFlow CLI
-* **Version**: v0.9.2
+* **Project**: DisplayFlowCLI
+* **Version**: v0.9.3
 
 
 ## README.md
 
 ```markdown
-# DisplayFlow CLI v0.9.2
+# DisplayFlow CLI v0.9.3
 
-A high-performance Rust tool for deterministic Windows display management. Unlike standard Windows settings, DisplayFlow maps volatile GDI handles to persistent hardware EDID data, ensuring your layouts remain stable across reboots and standby cycles.
+A Rust tool for Windows display management. Unlike standard Windows settings, DisplayFlow intents  to map volatile GDI handles to persistent hardware EDID data, ensuring your layouts remain stable .
 
 #
 #  Key Features
 - Persistent Mapping**: Links display settings to unique hardware IDs, preventing "scrambled" layouts.
-- Atomic Commits**: Swaps resolution, position, and orientation in a single Win32 GDI cycle.
-- Headless Deployment**: Generates silent VBS wrappers and injects global Windows Hotkeys (e.g., `CTRL+ALT+F1`) directly into your shortcuts.
-- Post-Execution Trigger**: Automatically launches an application (Game, IDE, Browser) after the display switch is complete.
-- Privacy-First Telemetry**: Anonymous hardware fingerprinting (SHA-256) to improve driver compatibility.
+- Swaps resolution, position, and orientation in a single Win32 GDI cycle.
+- Generates silent VBS wrappers and injects global Windows Hotkeys (e.g., `CTRL+ALT+F1`) directly into your shortcuts.
+- Automatically launches an application (Game, IDE, Browser) after the display switch is complete.
+- Opt In Anonymous hardware fingerprinting (SHA-256) to improve driver compatibility.
 
 
 ##  Installation
@@ -79,10 +79,4 @@ displayflow.exe "1:3440:1440:0:0:1:0 2:1080:1920:3440:0:0:1" save:Dev -t
 
 This tool includes an opt-in telemetry system to identify failing Win32 GDI calls on specific hardware.
 
-* **Data**: Anonymized hardware hashes and configuration success states.
-* **Security**: Transmitted via Supabase.
 
-##  Built With
-
-* **Rust & Windows-RS**: For memory-safe Win32 API interactions.
-* **GitHub Actions**: For secure, automated binary releases.

@@ -21,11 +21,11 @@ impl DFEngine {
     pub fn log(&self, status: &str, msg: &str) {
         let ts = Local::now().format("%H:%M:%S");
         let output = format!("[{}] [{:<7}] {}\n", ts, status, msg);
-        // Nur noch Konsolenausgabe, keine Dateioperationen mehr
+        
         print!("{}", output);
     }
 
-    /// Performs a full scan and briefly reactivates all ports 
+     
     pub fn full_scan_discovery(&self) -> Vec<DisplayRow> {
         self.log("FORCE", "Initializing CCD Safe-Handshake...");
         
