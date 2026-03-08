@@ -8,17 +8,17 @@ impl DeploymentManager {
     pub fn create_suite(
         name: &str, 
         tasks: &[DisplayTask], 
-        hotkey_string: Option<String>, // INJECTED: No longer captures internally
+        hotkey_string: Option<String>, 
         post_cmd: Option<String>
     ) -> Result<(), io::Error> {
         let current_dir = env::current_dir()?;
-        let exe = env::current_exe()?.display().to_string();
         let base_name = name.strip_suffix(".bat").unwrap_or(name);
 
         let bat_path = current_dir.join(format!("{}.bat", base_name));
         let vbs_path = current_dir.join(format!("{}.vbs", base_name));
         let icon_path = current_dir.join("DF.ico");
 
+        // Generierung der Display-Parameter (ID:W:H:X:Y:P:R)
         let args = tasks.iter().map(|t| {
             let rot = t.direction.as_deref().unwrap_or("0");
             format!("\"{}:{}:{}:{}:{}:{}:{}\"", 
@@ -26,25 +26,30 @@ impl DeploymentManager {
                 if t.is_primary { 1 } else { 0 }, rot)
         }).collect::<Vec<_>>().join(" ");
 
-        let mut bat_content = format!("@echo off\n\"{}\" {} --silent", exe, args);
+        // Batch-Inhalt: Dynamische Pfade via %~dp0 und Wegfall der Flags
+        let mut bat_content = String::from("@echo off\n\n");
         
-        // Use the presence of the hotkey string to determine the flag
-        if hotkey_string.is_some() {
-            bat_content.push_str(" --hotkey");
-        }
+        // Animation Startsequenz
+        bat_content.push_str("start \"\" \"%~dp0screen_animation.exe\" -d left left\n");
+        bat_content.push_str("powershell -command \"Start-Sleep -Milliseconds 3200\"\n\n");
+        
+        // Hauptaufruf Displayflow (Keine Flags wie --silent oder --hotkey)
+        bat_content.push_str(&format!("\"%~dp0displayflow.exe\" {}\n", args));
         
         if let Some(cmd) = post_cmd { 
             bat_content.push_str(&format!("\nstart \"\" \"{}\"", cmd)); 
         }
+        
         fs::write(&bat_path, bat_content)?;
 
+        // VBS-Wrapper für versteckte Ausführung (verweist auf die .bat)
         let vbs_content = format!(
             "Set W = CreateObject(\"WScript.Shell\")\nW.Run \"cmd /c \"\"{}\"\"\", 0", 
             bat_path.display()
         );
         fs::write(&vbs_path, vbs_content)?;
 
-        // DEPLOYMENT: Use the passed string immediately
+        // Shortcut-Erstellung auf dem Desktop (falls Hotkey vorhanden)
         if let Some(hk_string) = hotkey_string {
             Self::create_desktop_shortcut(
                 base_name, 
