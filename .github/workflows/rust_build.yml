@@ -3,7 +3,7 @@ name: Rust Build and Release
 on:
   push:
     tags:
-      - 'v*' # Startet den Prozess, wenn du einen Tag wie v1.0.0 pushst
+      - 'v*' 
   workflow_dispatch:
 
 jobs:
@@ -25,18 +25,18 @@ jobs:
       - name: Build Main Binary (DisplayFlow)
         env:
           SB_API_KEY: ${{ secrets.SB_API_KEY }}
-        run: cargo build --release # Hier wird die displayflow.exe aus der src gebaut
+        run: cargo build --release
 
       - name: Bundle Suite
         shell: pwsh
         run: |
-          # 1. Zielordner erstellen
+          
           New-Item -ItemType Directory -Force -Path ./publish
           
-          # 2. Die frisch gebaute EXE kopieren
+          
           Copy-Item "target/release/displayflow.exe" -Destination "./publish/"
           
-          # 3. Die statischen Begleitdateien kopieren (müssen im Repo-Root liegen)
+          
           if (Test-Path "screen_animation.exe") { 
             Copy-Item "screen_animation.exe" -Destination "./publish/" 
           }
@@ -44,7 +44,12 @@ jobs:
             Copy-Item "DF.ico" -Destination "./publish/" 
           }
           
-          # 4. Alles als ZIP packen
+          
+          if (Test-Path "sounds") {
+            Copy-Item -Path "sounds" -Destination "./publish/" -Recurse
+          }
+          
+          
           Compress-Archive -Path ./publish/* -DestinationPath ./displayflow_v1.zip
 
       - name: Create GitHub Release
