@@ -55,6 +55,6 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: displayflow_v1.zip
+          files: displayflow.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
