@@ -6,8 +6,10 @@
 
 ## README.md
 
-```markdown
 # DisplayFlow CLI v0.9.4
+
+[![Download Latest Release](https://img.shields.io/badge/Download-DisplayFlow_v0.9.4-blue?style=for-the-badge&logo=windows)](https://github.com/piot5/displayflow_cli/releases/latest/download/displayflow.zip)
+
 
 A Rust tool for Windows display management. Unlike standard Windows settings, DisplayFlow intents to map volatile GDI handles to persistent hardware EDID data, ensuring your layouts remain stable .
 
