@@ -50,7 +50,7 @@ jobs:
           }
           
           
-          Compress-Archive -Path ./publish/* -DestinationPath ./displayflow_v1.zip
+          Compress-Archive -Path ./publish/* -DestinationPath ./displayflow.zip
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
