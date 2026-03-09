@@ -1,18 +1,19 @@
 ## Header
 
 * **Project**: DisplayFlowCLI
-* **Version**: v0.9.3
+* **Version**: v0.9.4
 
 
 ## README.md
 
 ```markdown
-# DisplayFlow CLI v0.9.3
+# DisplayFlow CLI v0.9.4
 
-A Rust tool for Windows display management. Unlike standard Windows settings, DisplayFlow intents  to map volatile GDI handles to persistent hardware EDID data, ensuring your layouts remain stable .
+A Rust tool for Windows display management. Unlike standard Windows settings, DisplayFlow intents to map volatile GDI handles to persistent hardware EDID data, ensuring your layouts remain stable .
 
-#
-#  Key Features
+
+##  Key Features
+
 - Persistent Mapping**: Links display settings to unique hardware IDs, preventing "scrambled" layouts.
 - Swaps resolution, position, and orientation in a single Win32 GDI cycle.
 - Generates silent VBS wrappers and injects global Windows Hotkeys (e.g., `CTRL+ALT+F1`) directly into your shortcuts.
@@ -21,13 +22,15 @@ A Rust tool for Windows display management. Unlike standard Windows settings, Di
 
 
 ##  Installation
+
 1. Download the latest `displayflow.exe` from the **Releases** or **Actions/Artifacts** tab.
 2. Move the `.exe` to a permanent folder (e.g., `C:\Tools\`).
 3. (Optional) Add the folder to your Windows System PATH.
 
 
-##  Detailed Parameter Reference
-The CLI follows a deterministic argument structure: `[Monitor Configurations] [Command] [Flags]`.
+##  How to use
+
+The CLI follows this structure: `[Monitor Configurations] [Command] [Flags]`.
 
 ### Monitor String Format
 
@@ -47,10 +50,10 @@ The CLI follows a deterministic argument structure: `[Monitor Configurations] [C
 - `-t` / `--telemetry`: Opt-in to send an anonymous success/error report to the developer database.
 
 
-##  Usage Examples
 
 
 ### 1. Vertical Stack (Monitor 2 above Monitor 1)
+
 ```bash
 # Monitor 1: 1080p (Primary)
 # Monitor 2: 1080p (Above Monitor 1 at Y=-1080)
@@ -71,7 +74,7 @@ displayflow.exe "1:2560:1440:0:0:1:0 2:0:0:0:0:0:0" -t save:Gaming post:"C:\Prog
 ```bash
 # Monitor 1: Ultrawide Landscape
 # Monitor 2: 1080p Portrait (Rotated 90°)
-displayflow.exe "1:3440:1440:0:0:1:0 2:1080:1920:3440:0:0:1" save:Dev -t
+displayflow.exe "1:3440:1440:0:0:1:0 2:1080:1920:3440:0:0:1" -t save:Dev
 
 ```
 
