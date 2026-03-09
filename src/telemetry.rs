@@ -32,7 +32,6 @@ pub struct TelemetryManager {
 }
 
 impl TelemetryManager {
-    
     pub fn new(enabled: bool) -> Self {
         let manager = Self {
             enabled,
@@ -44,7 +43,6 @@ impl TelemetryManager {
         manager
     }
 
-    
     fn generate_device_hash() -> String {
         let mut sys = System::new_all();
         sys.refresh_all();
@@ -83,14 +81,10 @@ impl TelemetryManager {
             tasks_executed: tasks.len(),
         };
 
-       
         let _ = self.log_locally(&payload);
-        
-        
         self.upload_to_supabase(&payload);
     }
 
-    
     fn log_locally(&self, payload: &TelemetryPayload) -> std::io::Result<()> {
         let mut file = OpenOptions::new()
             .create(true)
@@ -101,15 +95,16 @@ impl TelemetryManager {
         writeln!(file, "{}", json_line)
     }
 
-    
     fn upload_to_supabase(&self, payload: &TelemetryPayload) {
         let client = reqwest::blocking::Client::new();
-        
-        
         let url = "https://pbuloekdtjpuiehbfypz.supabase.co/rest/v1/telemetry";
         
-        
-        let api_key = env!("SB_API_KEY");
+        // Liest den Key zur Laufzeit (Runtime)
+        let api_key = std::env::var("SB_API_KEY").unwrap_or_else(|_| "".to_string());
+
+        if api_key.is_empty() {
+            return;
+        }
 
         let body = json!({
             "device_hash": payload.device_hash,
@@ -118,27 +113,20 @@ impl TelemetryManager {
             "data": payload 
         });
 
-        let res = client.post(url)
-            .header("apikey", api_key)
+        let _ = client.post(url)
+            .header("apikey", &api_key)
             .header("Authorization", format!("Bearer {}", api_key))
             .header("Content-Type", "application/json")
             .header("Prefer", "return=minimal") 
             .json(&body)
             .send();
-
-        if let Err(e) = res {
-            // In silent mode we suppress errors; in the terminal we display them.
-            eprintln!("[TELEMETRY-INFO] Optional upload failed: {}", e);
-        }
     }
 
-    
     fn cleanup_old_data(&self) {
         let path = Path::new(&self.storage_path);
         if let Ok(metadata) = fs::metadata(path) {
             if let Ok(modified) = metadata.modified() {
                 if let Ok(elapsed) = modified.elapsed() {
-                    // 30 days = 2,592,000 seconds
                     if elapsed.as_secs() > 2592000 {
                         let _ = fs::remove_file(path);
                     }

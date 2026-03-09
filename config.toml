@@ -1,9 +1,0 @@
-pulse_frames = 20
-pulse_intensity = 0.05000000074505806
-pulse_speed_ms = 5
-woosh_frames = 60
-woosh_speed_ms = 5
-woosh_easing = 2.5
-post_animation_delay_ms = 3000
-sound1_path = "C:/Scripte/MonitorSetupSwitch/Sounds/sound5.wav"
-sound2_path = "C:/Scripte/MonitorSetupSwitch/Sounds/switch.wav"

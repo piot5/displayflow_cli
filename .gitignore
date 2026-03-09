@@ -1,7 +1,8 @@
-
-/target/
 Cargo.lock
-
+/target/
+/release/
+.env
+config.toml
 
 mapping.json
 telemetry_improvement.json
