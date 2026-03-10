@@ -1,87 +1,38 @@
-## Header
-
-* **Project**: DisplayFlowCLI
-* **Version**: v0.9.4
-
-
-## README.md
-
 # DisplayFlow CLI v0.9.4
 
 [![Download Latest Release](https://img.shields.io/badge/Download-DisplayFlow_v0.9.4-blue?style=for-the-badge&logo=windows)](https://github.com/piot5/displayflow_cli/releases/latest/download/displayflow.zip)
 
-
-A Rust tool for Windows display management. Unlike standard Windows settings, DisplayFlow intents to map volatile GDI handles to persistent hardware EDID data, ensuring your layouts remain stable .
-
-
-##  Key Features
-
-- Persistent Mapping**: Links display settings to unique hardware IDs, preventing "scrambled" layouts.
-- Swaps resolution, position, and orientation in a single Win32 GDI cycle.
-- Generates silent VBS wrappers and injects global Windows Hotkeys (e.g., `CTRL+ALT+F1`) directly into your shortcuts.
-- Automatically launches an application (Game, IDE, Browser) after the display switch is complete.
-- Opt In Anonymous hardware fingerprinting (SHA-256) to improve driver compatibility.
+Quickly switch and save Windows display layouts via CLI
 
 
-##  Installation
-
-1. Download the latest `displayflow.exe` from the **Releases** or **Actions/Artifacts** tab.
-2. Move the `.exe` to a permanent folder (e.g., `C:\Tools\`).
-3. (Optional) Add the folder to your Windows System PATH.
+## Installation
+1. Download `displayflow.exe` from Releases.
+2. Put it somewhere in your PATH.
 
 
-##  How to use
+## Usage
+`displayflow.exe [MonitorConfigs] [Command] [Flags]`
 
-The CLI follows this structure: `[Monitor Configurations] [Command] [Flags]`.
-
-### Monitor String Format
-
-`ID:Width:Height:X:Y:Primary:Rotation`
-- ID: Persistent hardware ID (found via `displayflow.exe` without params).
-- Width/Height**: Resolution in pixels. Use `0:0` to disable the display.
-- X/Y: Desktop coordinates. `0:0` is the top-left of the primary monitor.
-- Primary: `1` for the main display, `0` for secondary.
-- Rotation: `0` (None), `1` (90°), `2` (180°), `3` (270°).
+**Format:** `ID:Width:Height:X:Y:Primary:Rotation`
+(Run without params to see your IDs)
 
 
-### Commands & Flags
-
-- `save:Name`: Saves the profile and creates a silent VBS execution wrapper.
-- `post:"C:\Path\To\App.exe"`: Executes the specified program immediately after the display change.
-- `--hotkey`: (Used with `save`) Prompts for a physical key combo to bind to the Windows shortcut.
-- `-t` / `--telemetry`: Opt-in to send an anonymous success/error report to the developer database.
-
-
-
-
-### 1. Vertical Stack (Monitor 2 above Monitor 1)
-
+## Examples
+### Vertical Stack (Monitor 2 above 1)
 ```bash
-# Monitor 1: 1080p (Primary)
-# Monitor 2: 1080p (Above Monitor 1 at Y=-1080)
-displayflow.exe "1:1920:1080:0:0:1:0 2:1920:1080:0:-1080:0:0" -t save:Stacked
-
+displayflow.exe "1:1920:1080:0:0:1:0 2:1920:1080:0:-1080:0:0" save:Stacked
 ```
 
-### 2. Gaming Mode with Auto-Launch
-
+### Gaming (Disable Monitor 2 & launch Steam)
 ```bash
-# Set primary to 1440p, disable others, and launch Steam
-displayflow.exe "1:2560:1440:0:0:1:0 2:0:0:0:0:0:0" -t save:Gaming post:"C:\Program Files (x86)\Steam\steam.exe" --hotkey
-
+displayflow.exe "1:2560:1440:0:0:1:0 2:0:0:0:0:0:0" save:Gaming post:"C:\Path\To\Steam.exe" --hotkey
 ```
 
-### 3. Professional Coding Setup (Portrait Mode)
-
+### Coding Setup (Portrait Mode)
 ```bash
 # Monitor 1: Ultrawide Landscape
 # Monitor 2: 1080p Portrait (Rotated 90°)
-displayflow.exe "1:3440:1440:0:0:1:0 2:1080:1920:3440:0:0:1" -t save:Dev
-
+displayflow.exe "1:3440:1440:0:0:1:0 2:1080:1920:3440:0:0:1" save:Dev
 ```
-
-##  Telemetry for Improvement  -t param
-
-This tool includes an opt-in telemetry system to identify failing Win32 GDI calls on specific hardware.
 
 

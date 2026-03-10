@@ -23,8 +23,7 @@ jobs:
           targets: x86_64-pc-windows-msvc
 
       - name: Build Main Binary (DisplayFlow)
-        env:
-          SB_API_KEY: ${{ secrets.SB_API_KEY }}
+        # SB_API_KEY env entfernt, da Telemetrie gelöscht wurde
         run: cargo build --release
 
       - name: Bundle Suite

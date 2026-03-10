@@ -1,32 +1,23 @@
 mod engine;
 mod scraper;
 mod deployer;
-mod telemetry;
 
 use engine::DFEngine;
 use scraper::DisplayTask;
 use deployer::DeploymentManager;
-use telemetry::TelemetryManager;
 use std::{env, io::{self, Write}, process};
 
 fn main() {
     scraper::set_dpi_awareness();
     let args: Vec<String> = env::args().collect();
     
-    let telemetry_enabled = args.iter().any(|arg| arg == "-t" || arg == "--telemetry");
-    let tel_manager = TelemetryManager::new(telemetry_enabled);
     let engine = DFEngine::new();
 
-    
-    if args.len() < 2 || (args.len() == 2 && telemetry_enabled) {
+    // Falls keine Argumente übergeben wurden: Interaktiver Scan-Modus
+    if args.len() < 2 {
         print_header();
         
-        if telemetry_enabled {
-            println!("[PRIVACY] Telemetry active (anonymized).");
-            tel_manager.collect_system_state("TERMINAL_START", true, &[], &[]);
-        }
-
-        print!("\n[SCAN] Scan hardware inventory now? (y/n): ");
+        print!("\n[SCAN] Scan display inventory now? (y/n): ");
         let _ = io::stdout().flush();
 
         let mut choice = String::new();
@@ -55,9 +46,6 @@ fn main() {
                         row.persistent_id, row.resolution, status, short_id);
                 }
                 
-                if telemetry_enabled {
-                    tel_manager.collect_system_state("SCAN_COMPLETED", true, &inv, &[]);
-                }
                 println!("\n[OK] Scan complete.");
             }
         }
@@ -70,11 +58,10 @@ fn main() {
     let mut use_hotkey = false;
     let mut post_cmd = None;
     let mut is_silent = false;
-    let mut captured_hk: Option<String> = None; // Store the key combination
+    let mut captured_hk: Option<String> = None;
 
     for arg in args.iter().skip(1) {
         match arg.as_str() {
-            "-t" | "--telemetry" => continue, 
             "--silent" => is_silent = true,
             "-h" | "--hotkey" => use_hotkey = true,
             _ if arg.starts_with("save:") => {
@@ -109,32 +96,23 @@ fn main() {
     
     if use_hotkey {
         if !is_silent { 
-            println!("\n[WAIT] Ready.Push Hotkey..."); 
+            println!("\n[WAIT] Ready. Push Hotkey..."); 
             let _ = io::stdout().flush();
         }
-        // Capture once and store the result
         captured_hk = DeploymentManager::capture_hotkey_physical();
         
         if !is_silent { println!("[SIGNAL] Hotkey set."); }
     }
 
-    // --- PHASE 2: SYSTEM ANALYSIS ---
-    let pre_inv = engine.full_scan_discovery();
-
-    // --- PHASE 3: EXECUTION (Hardware-Config) ---
+    
     if !is_silent { 
         println!("[EXEC] Success..."); 
     }
     
     engine.execute_integrated(tasks.clone());
 
-    if telemetry_enabled {
-        tel_manager.collect_system_state("EXECUTE_CONFIG", true, &pre_inv, &tasks);
-    }
-
-    // --- PHASE 4: DEPLOYMENT / SAVE ---
+    
     if let Some(name) = save_name {
-        // Pass the already captured hotkey string to the manager
         match DeploymentManager::create_suite(&name, &tasks, captured_hk, post_cmd) {
             Ok(_) => { if !is_silent { println!("[OK] Shortcut ready."); } },
             Err(e) => { eprintln!("[ERROR] Deployment aborted: {}", e); }
@@ -146,6 +124,6 @@ fn main() {
 
 fn print_header() {
     println!("====================================================");
-    println!("                   DISPLAYFLOW v0.93                 ");
+    println!("                   DISPLAYFLOW v0.98                 ");
     println!("====================================================");
 }
