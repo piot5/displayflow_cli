@@ -11,15 +11,12 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
     let mut next_id = mapping.values().max().cloned().unwrap_or(0) + 1;
 
     for live_row in live_data {
-        if live_row.position_instance.is_empty() {
-            continue;
-        }
+        if live_row.position_instance.is_empty() { continue; }
 
         let mut synth = live_row.clone();
         synth.source = "Integrated_Final".into();
         let gdi_hw_path = synth.position_instance.to_uppercase();
 
-        
         if let Some(reg) = registry_data.iter().find(|r| {
             let rid = r.name_id.to_uppercase();
             !rid.is_empty() && gdi_hw_path.contains(&rid)
@@ -28,7 +25,6 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
             synth.size_mm = reg.size_mm.clone();
         }
 
-       
         let path_key = synth.position_instance.clone();
         let serial_suffix = if synth.serial != "N/A" && !synth.serial.is_empty() {
             format!("#{}", synth.serial)
@@ -37,7 +33,6 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
         };
         let precise_key = format!("{}{}", path_key, serial_suffix);
 
-        
         let persistent_id = if let Some(&id) = mapping.get(&precise_key) {
             id
         } else if let Some(&id) = mapping.get(&path_key) {
@@ -48,7 +43,6 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
             }
             id
         } else {
-            
             let id = next_id;
             mapping.insert(precise_key.clone(), id);
             next_id += 1;
@@ -60,9 +54,7 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
         final_results.push(synth);
     }
 
-    if mapping_changed {
-        save_mapping(&mapping);
-    }
+    if mapping_changed { save_mapping(&mapping); }
     final_results
 }
 
@@ -79,7 +71,6 @@ fn save_mapping(map: &HashMap<String, u32>) {
         .filter(|(k, _)| !k.is_empty())
         .map(|(k, v)| (k.clone(), *v))
         .collect();
-
     if let Ok(json) = serde_json::to_string_pretty(&clean_map) {
         let _ = fs::write("mapping.json", json);
     }

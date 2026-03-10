@@ -4,11 +4,11 @@ use windows::core::PCWSTR;
 use windows::Win32::Graphics::Gdi::{
     EnumDisplaySettingsW, ChangeDisplaySettingsExW, DEVMODEW, ENUM_CURRENT_SETTINGS,
     CDS_UPDATEREGISTRY, CDS_NORESET, CDS_SET_PRIMARY, DM_PELSWIDTH, DM_PELSHEIGHT, 
-    DM_POSITION, DM_DISPLAYORIENTATION, CDS_TYPE, DISP_CHANGE_SUCCESSFUL,
+    DM_POSITION, DM_DISPLAYORIENTATION, DM_DISPLAYFREQUENCY, CDS_TYPE, DISP_CHANGE_SUCCESSFUL,
     DMDO_DEFAULT, DMDO_90, DMDO_180, DMDO_270, DISPLAY_DEVICEW, EnumDisplayDevicesW,
     ENUM_REGISTRY_SETTINGS, DISP_CHANGE_RESTART
 };
-use windows::Win32::Devices::Display::{SetDisplayConfig, SDC_APPLY, SDC_TOPOLOGY_EXTEND};
+use windows::Win32::Devices::Display::{SetDisplayConfig, SDC_APPLY, SDC_TOPOLOGY_EXTEND, SDC_TOPOLOGY_CLONE};
 use crate::scraper::{self, DisplayTask, DisplayRow};
 
 pub struct DFEngine; 
@@ -21,14 +21,11 @@ impl DFEngine {
     pub fn log(&self, status: &str, msg: &str) {
         let ts = Local::now().format("%H:%M:%S");
         let output = format!("[{}] [{:<7}] {}\n", ts, status, msg);
-        
         print!("{}", output);
     }
 
-     
     pub fn full_scan_discovery(&self) -> Vec<DisplayRow> {
         self.log("FORCE", "Initializing CCD Safe-Handshake...");
-        
         unsafe {
             let _ = SetDisplayConfig(None, None, SDC_APPLY | SDC_TOPOLOGY_EXTEND);
             let mut snapshot = Vec::new();
@@ -88,6 +85,32 @@ impl DFEngine {
         }
     }
 
+    pub fn execute_clone(&self, source_query: &str, target_query: &str) {
+        self.log("CLONE", &format!("Attempting link: {} -> {}", source_query, target_query));
+        let inventory = self.full_scan_discovery();
+        
+        let find_fn = |q: &str| inventory.iter().find(|r| {
+            let qu = q.to_uppercase();
+            r.persistent_id.to_string() == qu || 
+            r.position_instance.to_uppercase().contains(&qu) ||
+            r.name_id.to_uppercase() == qu
+        });
+
+        if let (Some(_src), Some(_tgt)) = (find_fn(source_query), find_fn(target_query)) {
+            unsafe {
+                let res = SetDisplayConfig(None, None, SDC_APPLY | SDC_TOPOLOGY_CLONE);
+                // Fix E0610: res ist ein i32-basiertes Win32-Error-Objekt/Primitive
+                if res == 0 {
+                    self.log("OK", "Hardware clone topology applied.");
+                } else {
+                    self.log("ERROR", &format!("Failed to set clone topology. Code: {:?}", res));
+                }
+            }
+        } else {
+            self.log("WARN", "Clone source or target not found.");
+        }
+    }
+
     pub fn execute_integrated(&self, tasks: Vec<DisplayTask>) {
         let inventory = self.full_scan_discovery();
         let mut sorted = tasks.clone();
@@ -106,7 +129,7 @@ impl DFEngine {
 
             if let Some(dev) = target {
                 if self.stage_config(&dev.name_id, task) {
-                    self.log("STAGE", &format!("Target Ready: {} ({})", task.query, dev.name_id));
+                    self.log("STAGE", &format!("Target Ready: {} ({} @ {}Hz)", task.query, dev.name_id, task.freq));
                     staged_count += 1;
                 }
             } else {
@@ -146,6 +169,11 @@ impl DFEngine {
                 dm.Anonymous1.Anonymous2.dmPosition.x = task.x;
                 dm.Anonymous1.Anonymous2.dmPosition.y = task.y;
                 dm.Anonymous1.Anonymous2.dmDisplayOrientation = rotation;
+
+                if task.freq > 0 {
+                    dm.dmDisplayFrequency = task.freq;
+                    dm.dmFields |= DM_DISPLAYFREQUENCY;
+                }
 
                 let mut flags = CDS_UPDATEREGISTRY | CDS_NORESET;
                 if task.is_primary { flags |= CDS_SET_PRIMARY; }

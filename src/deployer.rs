@@ -18,22 +18,16 @@ impl DeploymentManager {
         let vbs_path = current_dir.join(format!("{}.vbs", base_name));
         let icon_path = current_dir.join("DF.ico");
 
-        
         let args = tasks.iter().map(|t| {
             let rot = t.direction.as_deref().unwrap_or("0");
-            format!("\"{}:{}:{}:{}:{}:{}:{}\"", 
+            format!("\"{}:{}:{}:{}:{}:{}:{}:{}\"", 
                 t.query, t.width, t.height, t.x, t.y, 
-                if t.is_primary { 1 } else { 0 }, rot)
+                if t.is_primary { 1 } else { 0 }, rot, t.freq)
         }).collect::<Vec<_>>().join(" ");
 
-        
         let mut bat_content = String::from("@echo off\n\n");
-        
-        
         bat_content.push_str("start \"\" \"%~dp0screen_animation.exe\" -d left right\n");
         bat_content.push_str("powershell -command \"Start-Sleep -Milliseconds 3200\"\n\n");
-        
-        
         bat_content.push_str(&format!("\"%~dp0displayflow.exe\" {}\n", args));
         
         if let Some(cmd) = post_cmd { 
@@ -42,14 +36,12 @@ impl DeploymentManager {
         
         fs::write(&bat_path, bat_content)?;
 
-        // VBS-Wrapper für versteckte Ausführung (verweist auf die .bat)
         let vbs_content = format!(
             "Set W = CreateObject(\"WScript.Shell\")\nW.Run \"cmd /c \"\"{}\"\"\", 0", 
             bat_path.display()
         );
         fs::write(&vbs_path, vbs_content)?;
 
-        
         if let Some(hk_string) = hotkey_string {
             Self::create_desktop_shortcut(
                 base_name, 
@@ -64,20 +56,16 @@ impl DeploymentManager {
 
     pub fn capture_hotkey_physical() -> Option<String> {
         thread::sleep(Duration::from_millis(500));
-
         let result = loop {
             let mut combo: Vec<String> = Vec::new();
             let mut key_pressed = false;
-
             unsafe {
                 let ctrl = GetAsyncKeyState(VK_CONTROL.0 as i32) as u16 & 0x8000 != 0;
                 let alt = GetAsyncKeyState(VK_MENU.0 as i32) as u16 & 0x8000 != 0;
                 let shift = GetAsyncKeyState(VK_SHIFT.0 as i32) as u16 & 0x8000 != 0;
-
                 if ctrl { combo.push("CTRL".into()); }
                 if alt { combo.push("ALT".into()); }
                 if shift { combo.push("SHIFT".into()); }
-                
                 for vk in (0x41..=0x5A).chain(0x70..=0x7B) {
                     if GetAsyncKeyState(vk as i32) as u16 & 0x8000 != 0 {
                         let name = match vk {
@@ -89,22 +77,18 @@ impl DeploymentManager {
                         break;
                     }
                 }
-
                 if combo.len() >= 2 && key_pressed {
                     let final_str = combo.join("+");
-                    
                     while (GetAsyncKeyState(VK_CONTROL.0 as i32) as u16 & 0x8000 != 0) ||
                           (GetAsyncKeyState(VK_MENU.0 as i32) as u16 & 0x8000 != 0) ||
                           (GetAsyncKeyState(VK_SHIFT.0 as i32) as u16 & 0x8000 != 0) {
                         thread::sleep(Duration::from_millis(10));
                     }
-                    
                     break Some(final_str);
                 }
             }
             thread::sleep(Duration::from_millis(50));
         };
-        
         result
     }
 
@@ -121,7 +105,6 @@ impl DeploymentManager {
              $s.Save();",
             name, vbs_path, hk, icon_path, icon_path
         );
-
         let _ = Command::new("powershell")
             .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &ps_script])
             .output();

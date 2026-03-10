@@ -55,7 +55,7 @@ pub fn scan_gdi_live() -> Vec<DisplayRow> {
                 settings.dmSize = mem::size_of::<DEVMODEW>() as u16;
                 if EnumDisplaySettingsW(PCWSTR::from_raw(device.DeviceName.as_ptr()), ENUM_CURRENT_SETTINGS, &mut settings).as_bool() {
                     row.resolution = format!("{}x{}", settings.dmPelsWidth, settings.dmPelsHeight);
-                    row.freq = format!("{}Hz", settings.dmDisplayFrequency);
+                    row.freq = format!("{}", settings.dmDisplayFrequency);
                 }
             }
             rows.push(row);
