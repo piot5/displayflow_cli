@@ -18,18 +18,18 @@ impl DFEngine {
         Self
     }
 
-    pub fn log(&self, status: &str, msg: &str) {
-        let ts = Local::now().format("%H:%M:%S");
-        let output = format!("[{}] [{:<7}] {}\n", ts, status, msg);
-        print!("{}", output);
+    pub fn log(&self, tag: &str, msg: &str) {
+        let ts = Local::now().format("%Y%m%dT%H%M%S");
+        println!("[{}] [{}] {}", ts, tag, msg);
     }
 
+    
     pub fn full_scan_discovery(&self) -> Vec<DisplayRow> {
-        self.log("FORCE", "Initializing CCD Safe-Handshake...");
+        self.log("INIT", "CCD_SCAN_START");
         unsafe {
             let _ = SetDisplayConfig(None, None, SDC_APPLY | SDC_TOPOLOGY_EXTEND);
             let mut snapshot = Vec::new();
-            let fallbacks = vec![(1920, 1080), (1280, 720), (1024, 768), (800, 600)];
+            let fallbacks = [(1920, 1080), (1280, 720), (1024, 768), (800, 600)];
 
             for i in 0..64 {
                 let mut device: DISPLAY_DEVICEW = mem::zeroed();
@@ -50,97 +50,88 @@ impl DFEngine {
                 snapshot.push((name_u16.clone(), is_active, dm.clone()));
 
                 if !is_active {
-                    for (w, h) in &fallbacks {
+                    for (w, h) in fallbacks {
                         let mut temp_dm = dm.clone();
-                        temp_dm.dmPelsWidth = *w;
-                        temp_dm.dmPelsHeight = *h;
+                        temp_dm.dmPelsWidth = w;
+                        temp_dm.dmPelsHeight = h;
                         temp_dm.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
 
                         let res = ChangeDisplaySettingsExW(pcw_name, Some(&temp_dm), None, CDS_UPDATEREGISTRY | CDS_NORESET, None);
-                        if res == DISP_CHANGE_SUCCESSFUL || res == DISP_CHANGE_RESTART {
-                            break;
-                        }
+                        if res == DISP_CHANGE_SUCCESSFUL || res == DISP_CHANGE_RESTART { break; }
                     }
                 }
             }
 
-            ChangeDisplaySettingsExW(None, None, None, CDS_TYPE(0), None);
+            self.commit_registry();
             let inventory = scraper::collect_inventory();
 
             for (name_ptr, was_active, old_dm) in snapshot {
                 let pcw_name = PCWSTR(name_ptr.as_ptr());
+                let mut reset_dm = old_dm.clone();
                 if !was_active {
-                    let mut off_dm = old_dm.clone();
-                    off_dm.dmPelsWidth = 0;
-                    off_dm.dmPelsHeight = 0;
-                    off_dm.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
-                    ChangeDisplaySettingsExW(pcw_name, Some(&off_dm), None, CDS_UPDATEREGISTRY | CDS_NORESET, None);
-                } else {
-                    ChangeDisplaySettingsExW(pcw_name, Some(&old_dm), None, CDS_UPDATEREGISTRY | CDS_NORESET, None);
+                    reset_dm.dmPelsWidth = 0;
+                    reset_dm.dmPelsHeight = 0;
                 }
+                reset_dm.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
+                ChangeDisplaySettingsExW(pcw_name, Some(&reset_dm), None, CDS_UPDATEREGISTRY | CDS_NORESET, None);
             }
             
-            ChangeDisplaySettingsExW(None, None, None, CDS_TYPE(0), None);
+            self.commit_registry();
             inventory
         }
     }
 
-    pub fn execute_clone(&self, source_query: &str, target_query: &str) {
-        self.log("CLONE", &format!("Attempting link: {} -> {}", source_query, target_query));
-        let inventory = self.full_scan_discovery();
+    pub fn execute_clone(&self, src_query: &str, tgt_query: &str) {
+        self.log("SYNC", "TOPOLOGY_CLONE_INIT");
+        let inv = self.full_scan_discovery();
         
-        let find_fn = |q: &str| inventory.iter().find(|r| {
-            let qu = q.to_uppercase();
-            r.persistent_id.to_string() == qu || 
-            r.position_instance.to_uppercase().contains(&qu) ||
-            r.name_id.to_uppercase() == qu
-        });
+        let find_node = |q: &str| inv.iter().find(|r| self.match_display(r, q));
 
-        if let (Some(_src), Some(_tgt)) = (find_fn(source_query), find_fn(target_query)) {
+        if find_node(src_query).is_some() && find_node(tgt_query).is_some() {
             unsafe {
-                let res = SetDisplayConfig(None, None, SDC_APPLY | SDC_TOPOLOGY_CLONE);
-                // Fix E0610: res ist ein i32-basiertes Win32-Error-Objekt/Primitive
-                if res == 0 {
-                    self.log("OK", "Hardware clone topology applied.");
+                if SetDisplayConfig(None, None, SDC_APPLY | SDC_TOPOLOGY_CLONE) == 0 {
+                    self.log("OK", "CLONE_APPLIED");
                 } else {
-                    self.log("ERROR", &format!("Failed to set clone topology. Code: {:?}", res));
+                    self.log("FAIL", "CLONE_ERR_01");
                 }
             }
         } else {
-            self.log("WARN", "Clone source or target not found.");
+            self.log("FAIL", "NODE_NOT_FOUND");
         }
     }
 
     pub fn execute_integrated(&self, tasks: Vec<DisplayTask>) {
-        let inventory = self.full_scan_discovery();
+        let inv = self.full_scan_discovery();
         let mut sorted = tasks.clone();
         sorted.sort_by_key(|t| !t.is_primary);
         
-        let mut staged_count = 0;
+        let mut staged = 0;
         for task in &sorted {
-            let query = task.query.to_uppercase();
-            let target = inventory.iter().find(|r| {
-                let id_match = r.persistent_id.to_string() == query;
-                let clean_hwid = r.position_instance.split('\\').nth(1).unwrap_or("").to_uppercase();
-                let hw_match = clean_hwid == query;
-                let name_match = r.name_id.to_uppercase() == query;
-                id_match || hw_match || name_match
-            });
-
-            if let Some(dev) = target {
+            if let Some(dev) = inv.iter().find(|r| self.match_display(r, &task.query)) {
                 if self.stage_config(&dev.name_id, task) {
-                    self.log("STAGE", &format!("Target Ready: {} ({} @ {}Hz)", task.query, dev.name_id, task.freq));
-                    staged_count += 1;
+                    staged += 1;
                 }
             } else {
-                self.log("WARN", &format!("Target '{}' was not found in the system.", task.query));
+                self.log("FAIL", &format!("NODE_MISSING: {}", task.query));
             }
         }
 
-        if staged_count > 0 {
-            unsafe { ChangeDisplaySettingsExW(None, None, None, CDS_TYPE(0), None); }
-            self.log("COMMIT", "New display layout applied successfully.");
+        if staged > 0 {
+            
+            self.commit_registry(); 
+            self.log("SYNC", "LAYOUT_COMMIT_SUCCESS");
         }
+    }
+
+    fn match_display(&self, row: &DisplayRow, query: &str) -> bool {
+        let q = query.to_uppercase();
+        row.persistent_id.to_string() == q || 
+        row.name_id.to_uppercase() == q ||
+        row.position_instance.split('\\').nth(1).map_or(false, |s| s.to_uppercase() == q)
+    }
+
+    fn commit_registry(&self) {
+        unsafe { ChangeDisplaySettingsExW(None, None, None, CDS_TYPE(0), None); }
     }
 
     fn stage_config(&self, name: &str, task: &DisplayTask) -> bool {
@@ -157,14 +148,14 @@ impl DFEngine {
                     _ => DMDO_DEFAULT,
                 };
 
-                if rotation == DMDO_90 || rotation == DMDO_270 {
-                    dm.dmPelsWidth = task.height as u32;
-                    dm.dmPelsHeight = task.width as u32;
+                let (w, h) = if rotation == DMDO_90 || rotation == DMDO_270 {
+                    (task.height, task.width)
                 } else {
-                    dm.dmPelsWidth = task.width as u32;
-                    dm.dmPelsHeight = task.height as u32;
-                }
+                    (task.width, task.height)
+                };
 
+                dm.dmPelsWidth = w as u32;
+                dm.dmPelsHeight = h as u32;
                 dm.dmFields |= DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
                 dm.Anonymous1.Anonymous2.dmPosition.x = task.x;
                 dm.Anonymous1.Anonymous2.dmPosition.y = task.y;
@@ -178,10 +169,10 @@ impl DFEngine {
                 let mut flags = CDS_UPDATEREGISTRY | CDS_NORESET;
                 if task.is_primary { flags |= CDS_SET_PRIMARY; }
 
-                let res = ChangeDisplaySettingsExW(PCWSTR(name_u16.as_ptr()), Some(&dm), None, flags, None);
-                return res == DISP_CHANGE_SUCCESSFUL;
+                ChangeDisplaySettingsExW(PCWSTR(name_u16.as_ptr()), Some(&dm), None, flags, None) == DISP_CHANGE_SUCCESSFUL
+            } else {
+                false
             }
         }
-        false
     }
 }
