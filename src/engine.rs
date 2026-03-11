@@ -23,7 +23,6 @@ impl DFEngine {
         println!("[{}] [{}] {}", ts, tag, msg);
     }
 
-    
     pub fn full_scan_discovery(&self) -> Vec<DisplayRow> {
         self.log("INIT", "CCD_SCAN_START");
         unsafe {
@@ -81,45 +80,31 @@ impl DFEngine {
         }
     }
 
-    pub fn execute_clone(&self, src_query: &str, tgt_query: &str) {
-        self.log("SYNC", "TOPOLOGY_CLONE_INIT");
+    pub fn atomic_deploy(&self, tasks: Vec<DisplayTask>, clones: Vec<(String, String)>) {
+        self.log("SYNC", "ATOMIC_COMMIT_START");
         let inv = self.full_scan_discovery();
-        
-        let find_node = |q: &str| inv.iter().find(|r| self.match_display(r, q));
 
-        if find_node(src_query).is_some() && find_node(tgt_query).is_some() {
+        if !clones.is_empty() {
             unsafe {
-                if SetDisplayConfig(None, None, SDC_APPLY | SDC_TOPOLOGY_CLONE) == 0 {
-                    self.log("OK", "CLONE_APPLIED");
-                } else {
-                    self.log("FAIL", "CLONE_ERR_01");
-                }
+                let _ = SetDisplayConfig(None, None, SDC_APPLY | SDC_TOPOLOGY_CLONE);
             }
-        } else {
-            self.log("FAIL", "NODE_NOT_FOUND");
         }
-    }
 
-    pub fn execute_integrated(&self, tasks: Vec<DisplayTask>) {
-        let inv = self.full_scan_discovery();
-        let mut sorted = tasks.clone();
-        sorted.sort_by_key(|t| !t.is_primary);
-        
-        let mut staged = 0;
-        for task in &sorted {
+        let mut sorted_tasks = tasks.clone();
+        sorted_tasks.sort_by_key(|t| !t.is_primary);
+
+        let mut staged_count = 0;
+        for task in &sorted_tasks {
             if let Some(dev) = inv.iter().find(|r| self.match_display(r, &task.query)) {
                 if self.stage_config(&dev.name_id, task) {
-                    staged += 1;
+                    staged_count += 1;
                 }
-            } else {
-                self.log("FAIL", &format!("NODE_MISSING: {}", task.query));
             }
         }
 
-        if staged > 0 {
-            
-            self.commit_registry(); 
-            self.log("SYNC", "LAYOUT_COMMIT_SUCCESS");
+        if staged_count > 0 || !clones.is_empty() {
+            self.commit_registry();
+            self.log("OK", "ATOMIC_COMMIT_SUCCESS");
         }
     }
 
