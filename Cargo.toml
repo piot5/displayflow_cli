@@ -1,6 +1,6 @@
 ﻿[package]
 name = "displayflow"
-version = "0.9.3"
+version = "1.0.3"
 edition = "2021"
 authors = ["pyotq"]
 description = "Persistent Monitor Profile Manager for Windows"
