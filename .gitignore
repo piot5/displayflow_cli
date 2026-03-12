@@ -4,8 +4,7 @@ Cargo.lock
 .env
 config.toml
 
-mapping.json
-telemetry_improvement.json
+monitor_db.json
 .env
 
 

@@ -1,6 +1,7 @@
 mod engine;
 mod scraper;
 mod deployer;
+mod hw_init;
 
 use engine::DFEngine;
 use scraper::{DisplayTask, set_dpi_awareness};
@@ -16,6 +17,9 @@ struct Cli {
 
     #[arg(short, long, action = ArgAction::SetTrue)]
     hotkey: bool,
+
+    #[arg(short, long, action = ArgAction::SetTrue)]
+    scan: bool,
 
     #[arg(short, long)]
     clone: Vec<String>,
@@ -35,8 +39,12 @@ fn main() {
     let cli = Cli::parse();
     let engine = DFEngine::new();
 
+    if cli.scan {
+        execute_scan_output();
+        return;
+    }
+
     if cli.tasks.is_empty() && cli.clone.is_empty() && cli.save.is_none() {
-        run_scan(&engine);
         return;
     }
 
@@ -46,27 +54,27 @@ fn main() {
             print!("WAIT_HK..."); 
             let _ = io::stdout().flush();
         }
-        hk_val = DeploymentManager::capture_hotkey_physical();
-    }
-
-    let mut clone_pairs = Vec::new();
-    for c_str in &cli.clone {
-        let bits: Vec<&str> = c_str.split('/').collect();
-        if bits.len() == 2 {
-            clone_pairs.push((bits[0].to_string(), bits[1].to_string()));
-        }
+        // FIX: Aufruf an geänderten Methodennamen in deployer.rs angepasst
+        hk_val = DeploymentManager::capture_hotkey_physical(); 
     }
 
     let display_tasks: Vec<DisplayTask> = cli.tasks.iter()
         .filter_map(|s| parse_task(s))
         .collect();
 
-    if !display_tasks.is_empty() || !clone_pairs.is_empty() {
-        engine.atomic_deploy(display_tasks.clone(), clone_pairs);
-    }
+    let clone_pairs: Vec<(String, String)> = cli.clone.iter()
+        .filter_map(|s| {
+            let p: Vec<&str> = s.split(':').collect();
+            if p.len() == 2 { Some((p[0].to_string(), p[1].to_string())) } else { None }
+        })
+        .collect();
 
-    if let Some(name) = &cli.save {
-        if DeploymentManager::create_suite(name, &display_tasks, hk_val, cli.post).is_err() {
+    if cli.save.is_none() {
+        if !display_tasks.is_empty() || !clone_pairs.is_empty() {
+            engine.atomic_deploy(display_tasks, clone_pairs);
+        }
+    } else if let Some(name) = cli.save {
+        if DeploymentManager::create_suite(&name, &display_tasks, hk_val, cli.post).is_err() {
             if !cli.silent { eprintln!("ERR_0x02"); }
             process::exit(1);
         }
@@ -90,31 +98,15 @@ fn parse_task(raw: &str) -> Option<DisplayTask> {
     })
 }
 
-fn run_scan(eng: &DFEngine) {
-    print!("SCAN? (y/n): ");
-    let _ = io::stdout().flush();
-    let mut buf = String::new();
-    
-    if io::stdin().read_line(&mut buf).is_ok() && buf.trim().eq_ignore_ascii_case("y") {
-        let data = eng.full_scan_discovery();
-        for r in data.iter().filter(|r| r.source == "Integrated_Final" && !r.position_instance.is_empty()) {
-            let hw = clean_id(&r.position_instance);
-            let sid = hw.split('\\').nth(1).unwrap_or("N/A");
-            
-            if sid != "N/A" && r.persistent_id != 0 {
-                println!("ID:{}|RES:{}|FRQ:{}|ACT:{}|MOD:{}", 
-                    r.persistent_id, r.resolution, r.freq, r.active, sid);
-            }
-        }
+fn execute_scan_output() {
+    let data = hw_init::run_discovery_flow();
+    for r in data.iter().filter(|r| r.source == "Integrated_Final" && !r.position_instance.is_empty()) {
+        let hw = clean_id(&r.position_instance);
+        let sid = hw.split('\\').nth(1).unwrap_or("UNKNOWN");
+        println!("{}:{}:{}:{}:{}:{}", sid, r.persistent_id, r.resolution, r.freq, r.primary, r.active);
     }
 }
 
-fn clean_id(raw: &str) -> String {
-    if let (Some(a), Some(b)) = (raw.find('{'), raw.find('}')) {
-        let mut s = raw.to_string();
-        s.replace_range(a..=b, "");
-        s.replace("\\\\", "\\")
-    } else {
-        raw.to_string()
-    }
+fn clean_id(id: &str) -> String {
+    id.replace("DISPLAY\\", "").split('{').next().unwrap_or(id).trim_end_matches('\\').to_string()
 }

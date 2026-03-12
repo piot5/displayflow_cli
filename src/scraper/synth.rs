@@ -12,21 +12,18 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
 
     let mut next_id = mapping.values().max().map_or(1, |&max| max + 1);
 
-    for live_row in live_data {
-        if live_row.position_instance.is_empty() { continue; }
+    for mut synth in live_data {
+        if synth.position_instance.is_empty() { continue; }
 
-        let mut synth = live_row.clone();
         synth.source = "Integrated_Final".into();
-        
         
         if let Some(reg) = find_registry_match(&synth.position_instance, &registry_data) {
             synth.serial = reg.serial.clone();
             synth.size_mm = reg.size_mm.clone();
         }
 
-        
         let (path_key, precise_key) = generate_keys(&synth);
-        let persistent_id = determine_id(
+        synth.persistent_id = determine_id(
             &mut mapping, 
             &path_key, 
             &precise_key, 
@@ -34,7 +31,6 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
             &mut mapping_changed
         );
 
-        synth.persistent_id = persistent_id;
         final_results.push(synth);
     }
 
@@ -73,8 +69,9 @@ fn determine_id(
 
     if let Some(&id) = mapping.get(path_key) {
         if precise_key != path_key {
+            let id_val = id;
             mapping.remove(path_key);
-            mapping.insert(precise_key.to_string(), id);
+            mapping.insert(precise_key.to_string(), id_val);
             *changed = true;
         }
         return id;
@@ -91,30 +88,21 @@ fn load_mapping() -> HashMap<String, u32> {
     let path = Path::new(MAPPING_FILE);
     if !path.exists() { return HashMap::new(); }
 
-    
     fs::read_to_string(path)
         .and_then(|content| {
             serde_json::from_str(&content)
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
         })
-        .unwrap_or_else(|e: std::io::Error| {
+        .unwrap_or_else(|e| {
             eprintln!("ERR_LOAD_MAPPING: {}", e);
             HashMap::new()
         })
 }
 
 fn save_mapping(map: &HashMap<String, u32>) {
-    let clean_map: HashMap<String, u32> = map.iter()
-        .filter(|(k, _)| !k.is_empty())
-        .map(|(k, v)| (k.clone(), *v))
-        .collect();
-
-    match serde_json::to_string_pretty(&clean_map) {
-        Ok(json) => {
-            if let Err(e) = fs::write(MAPPING_FILE, json) {
-                eprintln!("ERR_WRITE_MAPPING: {}", e);
-            }
-        },
-        Err(e) => eprintln!("ERR_SERIALIZE_MAPPING: {}", e),
+    if let Ok(json) = serde_json::to_string_pretty(map) {
+        if let Err(e) = fs::write(MAPPING_FILE, json) {
+            eprintln!("ERR_WRITE_MAPPING: {}", e);
+        }
     }
 }
