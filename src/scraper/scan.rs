@@ -27,9 +27,12 @@ impl GdiDevMode {
     }
 }
 
-pub fn set_dpi_awareness() { unsafe { let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); } }
+pub fn set_dpi_awareness() { 
+    unsafe { let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); } 
+}
 
 pub fn scan_gdi_live() -> Result<Vec<DisplayRow>> {
+    set_dpi_awareness();
     let mut rows = Vec::new();
     unsafe {
         for i in 0..64 {
@@ -46,7 +49,7 @@ pub fn scan_gdi_live() -> Result<Vec<DisplayRow>> {
             let is_pri = (device.0.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
             let mut row = DisplayRow {
                 source: "GDI_LIVE".into(), name_id: device_name, resolution: "N/A".into(),
-                freq: "N/A".into(), dpi: "100%".into(), position_instance: hw_id_path,
+                freq: "N/A".into(), dpi: "100%".into(), scale_factor: 1.0, position_instance: hw_id_path,
                 active: if is_active { "YES".into() } else { "NO".into() },
                 primary: if is_pri { "YES".into() } else { "NO".into() },
                 serial: "N/A".into(), size_mm: "N/A".into(), persistent_id: 0, x: 0, y: 0, is_primary: is_pri,
@@ -58,7 +61,9 @@ pub fn scan_gdi_live() -> Result<Vec<DisplayRow>> {
                     row.freq = format!("{}", settings.0.dmDisplayFrequency);
                     row.x = settings.0.Anonymous1.Anonymous2.dmPosition.x;
                     row.y = settings.0.Anonymous1.Anonymous2.dmPosition.y;
-                    row.dpi = get_dpi_for_point(POINT { x: row.x, y: row.y });
+                    let (dpi_label, factor) = get_dpi_data(POINT { x: row.x, y: row.y });
+                    row.dpi = dpi_label;
+                    row.scale_factor = factor;
                 }
             }
             rows.push(row);
@@ -67,15 +72,16 @@ pub fn scan_gdi_live() -> Result<Vec<DisplayRow>> {
     Ok(rows)
 }
 
-fn get_dpi_for_point(pt: POINT) -> String {
+fn get_dpi_data(pt: POINT) -> (String, f32) {
     unsafe {
         let h_monitor = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
         let (mut dx, mut dy) = (0, 0);
         if GetDpiForMonitor(h_monitor, MDT_EFFECTIVE_DPI, &mut dx, &mut dy).is_ok() {
-            return format!("{}%", (dx as f32 / 96.0 * 100.0).round() as i32);
+            let factor = dx as f32 / 96.0;
+            return (format!("{}%", (factor * 100.0).round() as i32), factor);
         }
     }
-    "100%".into()
+    ("100%".into(), 1.0)
 }
 
 pub fn scan_registry_monitors() -> Vec<DisplayRow> {
@@ -90,7 +96,7 @@ pub fn scan_registry_monitors() -> Vec<DisplayRow> {
                             let (sn, size, res) = parse_edid(&edid.bytes);
                             results.push(DisplayRow {
                                 source: "Registry".into(), name_id: hw_id.clone(), resolution: res,
-                                freq: "N/A".into(), dpi: "N/A".into(), position_instance: inst_id.clone(),
+                                freq: "N/A".into(), dpi: "N/A".into(), scale_factor: 1.0, position_instance: inst_id.clone(),
                                 active: "STORED".into(), primary: "N/A".into(), serial: sn, size_mm: size,
                                 persistent_id: 0, x: 0, y: 0, is_primary: false,
                             });

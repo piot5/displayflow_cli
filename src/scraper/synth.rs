@@ -15,7 +15,7 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
 
     for mut synth in live_data {
         if synth.position_instance.is_empty() { continue; }
-        synth.source = "Integrated_Final".into();
+        synth.source = "synth_data".into();
         if let Some(reg) = find_registry_match(&synth.position_instance, &registry_data) {
             synth.serial = reg.serial.clone();
             synth.size_mm = reg.size_mm.clone();
@@ -26,7 +26,25 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
     }
 
     if mapping_changed { save_mapping(&mapping); }
+    
+    normalize_synth_coordinates(&mut final_results);
+    
     final_results
+}
+
+fn normalize_synth_coordinates(rows: &mut [DisplayRow]) {
+    rows.sort_by_key(|r| (r.x, r.y));
+    let mut offset_x = 0;
+    for row in rows {
+        if row.is_primary {
+            row.x = 0;
+            row.y = 0;
+        } else {
+            row.x = offset_x;
+        }
+        let width_px: i32 = row.resolution.split('x').next().unwrap_or("0").parse().unwrap_or(0);
+        offset_x += (width_px as f32 / row.scale_factor) as i32;
+    }
 }
 
 fn find_registry_match<'a>(hw_path: &str, registry: &'a [DisplayRow]) -> Option<&'a DisplayRow> {

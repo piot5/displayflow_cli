@@ -6,10 +6,9 @@ use winreg::RegKey;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::Win32::UI::Input::KeyboardAndMouse::{RegisterHotKey, MOD_CONTROL, MOD_ALT, MOD_SHIFT, MOD_NOREPEAT};
 use windows::Win32::UI::Shell::*;
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, POINT, GetLastError};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, POINT};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use crate::engine::DFEngine;
-use crate::apply_registry_suite;
 
 const WM_TRAY_ICON: u32 = WM_USER + 1;
 const TRAY_ICON_ID: u32 = 1;
@@ -58,15 +57,17 @@ pub fn start_daemon_service(engine: DFEngine) -> Result<()> {
 unsafe fn register_daemon_hotkeys(hwnd: HWND) {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     if let Ok(key) = hkcu.open_subkey(r"Software\DisplayFlow\Suites") {
-        for (i, (name, value)) in key.enum_values().map_while(Result::ok).enumerate() {
+        for (i, (_name, value)) in key.enum_values().map_while(Result::ok).enumerate() {
             let raw_val: String = value.to_string();
-            if let Some(hk_part) = raw_val.split(';').find(|p| p.starts_with("hotkey|")) {
-                let combo = hk_part.split('|').nth(1).unwrap_or("");
+            let hk_part = raw_val.split(';').find(|p| p.starts_with("hotkey|") || p.starts_with("hk|"));
+            
+            if let Some(part) = hk_part {
+                let combo = part.split('|').nth(1).unwrap_or("");
                 let mut modifiers = MOD_NOREPEAT;
                 let mut key_code = 0u32;
 
-                for part in combo.split('+') {
-                    match part.to_uppercase().as_str() {
+                for p in combo.split('+') {
+                    match p.to_uppercase().as_str() {
                         "CTRL" => modifiers |= MOD_CONTROL,
                         "ALT" => modifiers |= MOD_ALT,
                         "SHIFT" => modifiers |= MOD_SHIFT,
@@ -76,18 +77,7 @@ unsafe fn register_daemon_hotkeys(hwnd: HWND) {
                 }
 
                 if key_code != 0 {
-                    if let Err(_) = RegisterHotKey(hwnd, i as i32, modifiers, key_code) {
-                        let err = GetLastError();
-                        eprintln!("\n[CONFLICT] Hotkey '{}' for suite '{}' is already in use (Error: {:?}).", combo, name, err);
-                        eprintln!("[CAUSE] This is usually caused by an existing Windows Desktop Shortcut (.lnk) using the same key.");
-                        eprintln!("[INSTRUCTION] To allow the Daemon to handle this hotkey:");
-                        eprintln!(" 1. Find 'df_{}.lnk' on your Desktop.", name);
-                        eprintln!(" 2. Right-click -> Properties -> Shortcut tab.");
-                        eprintln!(" 3. Set 'Shortcut key' to None or delete the shortcut.");
-                        eprintln!(" 4. Restart the DisplayFlow Daemon.\n");
-                    } else {
-                        println!("[SUCCESS] Registered daemon hotkey '{}' for '{}'", combo, name);
-                    }
+                    let _ = RegisterHotKey(hwnd, i as i32, modifiers, key_code);
                 }
             }
         }
@@ -103,6 +93,7 @@ unsafe fn setup_tray_icon(hwnd: HWND) {
         uCallbackMessage: WM_TRAY_ICON,
         ..Default::default()
     };
+    
     let icon_path = windows::core::w!("DF.ico");
     let h_icon = LoadImageW(None, icon_path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
     nid.hIcon = if let Ok(h) = h_icon { HICON(h.0) } else { LoadIconW(None, IDI_APPLICATION).unwrap() };
@@ -165,7 +156,7 @@ fn apply_registry_suite_by_index(idx: usize, engine: &DFEngine) -> Result<()> {
         names.push(name);
     }
     if let Some(name) = names.get(idx) {
-        apply_registry_suite(name, engine, true)?;
+        engine.apply_registry_suite(name, true)?;
     }
     Ok(())
 }
