@@ -28,26 +28,24 @@ jobs:
       - name: Bundle Suite
         shell: pwsh
         run: |
-          
+          # Verzeichnis erstellen
           New-Item -ItemType Directory -Force -Path ./publish
           
-          
+          # Haupt-Binary kopieren (Name korrigiert auf displayflowcli.exe)
           Copy-Item "target/release/displayflowcli.exe" -Destination "./publish/"
           
-          
+          # Optionale Dateien prüfen und kopieren
           if (Test-Path "screen_animation.exe") { 
             Copy-Item "screen_animation.exe" -Destination "./publish/" 
           }
           if (Test-Path "DF.ico") { 
             Copy-Item "DF.ico" -Destination "./publish/" 
           }
-          
-          
           if (Test-Path "sounds") {
             Copy-Item -Path "sounds" -Destination "./publish/" -Recurse
           }
           
-          
+          # ZIP-Archiv erstellen
           Compress-Archive -Path ./publish/* -DestinationPath ./displayflow.zip
 
       - name: Create GitHub Release
