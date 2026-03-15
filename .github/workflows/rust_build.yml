@@ -23,7 +23,6 @@ jobs:
           targets: x86_64-pc-windows-msvc
 
       - name: Build Main Binary (DisplayFlow)
-        # SB_API_KEY env entfernt, da Telemetrie gelöscht wurde
         run: cargo build --release
 
       - name: Bundle Suite
@@ -33,7 +32,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path ./publish
           
           
-          Copy-Item "target/release/displayflow.exe" -Destination "./publish/"
+          Copy-Item "target/release/displayflowcli.exe" -Destination "./publish/"
           
           
           if (Test-Path "screen_animation.exe") { 
