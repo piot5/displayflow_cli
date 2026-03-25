@@ -14,7 +14,7 @@ displayflow.exe [MonitorConfigs] [Command] [Flags]
 Format:
 
 ID:Width:Height:X:Y:Primary:Rotation:Frequency
-(Run displayflow.exe --scan to find your stable persistent IDs).
+(Run displayflow.exe --scan to find your ID).
 
 Examples
 
