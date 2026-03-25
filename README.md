@@ -24,7 +24,7 @@ captures the live state and saves it to a named profile
 displayflow.exe --save Simracer
 
 
-2. Vertical Stack (Monitor 2 above 1)
+1. Vertical Stack (Monitor 2 above 1)
 Sets up a configuration where Monitor 2 is physically positioned above your primary monitor.
 
 
