@@ -1,5 +1,8 @@
 pub mod scan;
 pub mod synth;
+pub mod ddc;
+
+pub use synth::collect_inventory;
 
 use serde::{Serialize, Deserialize};
 
@@ -20,6 +23,7 @@ pub struct DisplayRow {
     pub x: i32, 
     pub y: i32, 
     pub is_primary: bool,
+    pub ddc: Option<ddc::DdcCaps>,
 }
 
 impl DisplayRow {
@@ -32,22 +36,29 @@ impl DisplayRow {
             y: self.y,
             is_primary: self.is_primary,
             direction: None,
-            freq: self.freq.replace("Hz","").trim().parse().unwrap_or(0),
+            freq: self.freq.replace("Hz", "").trim().parse().unwrap_or(0),
+            brightness: self.ddc.as_ref().map(|d| d.brightness),
+            contrast: self.ddc.as_ref().map(|d| d.contrast),
+            animation: None,
         }
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DisplayTask {
     pub query: String, 
     pub width: i32, 
     pub height: i32, 
     pub x: i32, 
-    pub y: i32,
-    pub is_primary: bool, 
-    pub direction: Option<String>, 
+    pub y: i32, 
+    pub is_primary: bool,
+    pub direction: Option<String>,
     pub freq: u32,
+    pub brightness: Option<u32>,
+    pub contrast: Option<u32>,
+    pub animation: Option<String>,
 }
 
-pub use scan::set_dpi_awareness;
-pub fn collect_inventory() -> Vec<DisplayRow> { synth::collect_inventory() }
+pub fn set_dpi_awareness() {
+    scan::set_dpi_awareness();
+}

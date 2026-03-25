@@ -14,19 +14,24 @@ pub struct Cli {
     #[arg(long)] pub post: Option<String>,
     #[arg(long)] pub apply_suite: Option<String>,
     #[arg(value_name = "TASKS")] pub tasks: Vec<String>,
+    #[arg(long)] pub animation: Option<String>,
 }
 
 pub fn parse_task(raw: &str) -> Option<DisplayTask> {
     let p: Vec<&str> = raw.split(':').collect();
     if p.len() < 5 { return None; }
+
     Some(DisplayTask {
         query: p[0].into(),
         width: p[1].parse().ok()?,
         height: p[2].parse().ok()?,
         x: p[3].parse().ok()?,
         y: p[4].parse().ok()?,
-        is_primary: p.get(5).map_or(false, |&v| v == "1"),
-        direction: p.get(6).map(|&s| s.into()),
-        freq: p.get(7).and_then(|s| s.parse().ok()).unwrap_or(0),
+        is_primary: p.get(5).map(|&s| s == "1").unwrap_or(false),
+        direction: p.get(6).filter(|&&s| s != "0").map(|&s| s.to_string()),
+        freq: p.get(7).and_then(|&s| s.parse().ok()).unwrap_or(0),
+        brightness: p.get(8).and_then(|&s| s.parse().ok()),
+        contrast: p.get(9).and_then(|&s| s.parse().ok()),
+        animation: p.get(10).filter(|&&s| s != "0").map(|&s| s.to_string()),
     })
 }

@@ -27,7 +27,6 @@ impl DeploymentManager {
         let mut suite_config = format!("tasks|{}", task_data);
         if let Some(cmd) = post_cmd { suite_config.push_str(&format!(";post|{}", cmd)); }
         
-        // Persist hotkey in registry for daemon usage
         if let Some(ref hk) = hotkey {
             suite_config.push_str(&format!(";hotkey|{}", hk));
         }
@@ -45,7 +44,6 @@ impl DeploymentManager {
                 .unwrap_or("")
                 .to_string();
             
-            // Only assign hotkey to .lnk if requested (-l:h)
             let shell_hk = if link_with_hotkey { hotkey.unwrap_or_default() } else { String::new() };
 
             Self::create_desktop_shortcut(base_name, &exe_path, &format!("--apply-suite \"{}\"", base_name), &icon_path, &shell_hk)?;
@@ -56,8 +54,20 @@ impl DeploymentManager {
 
     fn format_task_args(tasks: &[DisplayTask]) -> String {
         tasks.iter().map(|t| {
-            format!("{}:{}:{}:{}:{}:{}:{}:{}", t.query, t.width, t.height, t.x, t.y, 
-            if t.is_primary { "1" } else { "0" }, t.direction.as_deref().unwrap_or("0"), t.freq)
+            let ani = t.animation.as_deref().unwrap_or("0");
+            let dir = t.direction.as_deref().unwrap_or("0");
+            format!(
+                "{}:{}:{}:{}:{}:{}:{}:{}:0:0:{}", 
+                t.query, 
+                t.width, 
+                t.height, 
+                t.x, 
+                t.y, 
+                if t.is_primary { "1" } else { "0" },
+                dir,
+                t.freq,
+                ani
+            )
         }).collect::<Vec<_>>().join(",")
     }
 

@@ -1,13 +1,24 @@
 use std::io::{self, Write};
 use serde::Serialize;
 
-pub enum OutMode { Console, Pipe }
+pub enum OutMode {
+    Console,
+    Pipe,
+}
 
-pub struct IOBridge { pub mode: OutMode }
+pub struct IOBridge {
+    pub mode: OutMode,
+}
 
 impl IOBridge {
     pub fn new(is_daemon: bool) -> Self {
-        Self { mode: if is_daemon { OutMode::Pipe } else { OutMode::Console } }
+        Self {
+            mode: if is_daemon {
+                OutMode::Pipe
+            } else {
+                OutMode::Console
+            },
+        }
     }
 
     pub fn output<T: Serialize>(&self, tag: &str, data: &T) {
@@ -25,9 +36,10 @@ impl IOBridge {
             }
         }
     }
-    
+
     #[allow(dead_code)]
-    pub fn log(&self, msg: &str) {
-        if let OutMode::Console = self.mode { println!("> {}", msg); }
+    pub fn raw_msg(&self, msg: &str) {
+        println!("{}", msg);
+        let _ = io::stdout().flush();
     }
 }

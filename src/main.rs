@@ -6,7 +6,7 @@ mod cli;
 mod bridge;
 
 use engine::DFEngine;
-use scraper::set_dpi_awareness;
+use scraper::{set_dpi_awareness, DisplayTask};
 use deployer::DeploymentManager;
 use cli::{Cli, parse_task};
 use bridge::IOBridge;
@@ -22,7 +22,13 @@ fn main() -> Result<()> {
 
     if args.scan {
         let (data, _) = engine.inventory();
-        for row in data { bridge.output("SCAN_RES", &row); }
+        for row in data { 
+            bridge.output("SCAN_RES", &row); 
+        }
+        
+        let suites = engine.list_suites();
+        bridge.output("SUITES_RES", &suites);
+        
         return Ok(());
     }
 
@@ -35,7 +41,13 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let mut tasks: Vec<_> = args.tasks.iter().filter_map(|s| parse_task(s)).collect();
+    let mut tasks: Vec<DisplayTask> = args.tasks.iter().filter_map(|s| parse_task(s)).collect();
+
+    if let Some(ref ani) = args.animation {
+        for task in &mut tasks {
+            task.animation = Some(ani.clone());
+        }
+    }
 
     if let Some(save_name) = args.save {
         if tasks.is_empty() {
@@ -44,7 +56,9 @@ fn main() -> Result<()> {
         }
         
         let mut hk = None;
-        if args.hotkey { hk = DeploymentManager::capture_hotkey(); }
+        if args.hotkey { 
+            hk = DeploymentManager::capture_hotkey(); 
+        }
 
         DeploymentManager::create_suite(
             &save_name, &tasks, hk, args.post, 

@@ -32,56 +32,62 @@ pub fn set_dpi_awareness() {
 }
 
 pub fn scan_gdi_live() -> Result<Vec<DisplayRow>> {
-    set_dpi_awareness();
     let mut rows = Vec::new();
     unsafe {
         for i in 0..64 {
             let mut device = GdiDevice::new();
             if !EnumDisplayDevicesW(None, i, device.as_mut_ptr(), 0).as_bool() { break; }
+            
             let device_name_raw = PCWSTR::from_raw(device.0.DeviceName.as_ptr());
             let device_name = String::from_utf16_lossy(&device.0.DeviceName).trim_matches('\0').to_string();
+            
             let mut monitor_device = GdiDevice::new();
             let mut hw_id_path = String::new();
             if EnumDisplayDevicesW(device_name_raw, 0, monitor_device.as_mut_ptr(), 0).as_bool() {
                 hw_id_path = String::from_utf16_lossy(&monitor_device.0.DeviceID).trim_matches('\0').to_string();
             }
+
             let is_active = (device.0.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0;
             let is_pri = (device.0.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
+
             let mut row = DisplayRow {
-                source: "GDI_LIVE".into(), name_id: device_name, resolution: "N/A".into(),
-                freq: "N/A".into(), dpi: "100%".into(), scale_factor: 1.0, position_instance: hw_id_path,
+                source: "GDI_LIVE".into(),
+                name_id: device_name,
+                resolution: "N/A".into(),
+                freq: "N/A".into(),
+                dpi: "100%".into(),
+                scale_factor: 1.0,
+                position_instance: hw_id_path,
                 active: if is_active { "YES".into() } else { "NO".into() },
                 primary: if is_pri { "YES".into() } else { "NO".into() },
-                serial: "N/A".into(), size_mm: "N/A".into(), persistent_id: 0, x: 0, y: 0, is_primary: is_pri,
+                serial: "N/A".into(),
+                size_mm: "N/A".into(),
+                persistent_id: 0,
+                x: 0, y: 0, 
+                is_primary: is_pri,
+                ddc: None, // Fix für E0063
             };
+
             if is_active {
                 let mut settings = GdiDevMode::new();
                 if EnumDisplaySettingsW(device_name_raw, ENUM_CURRENT_SETTINGS, &mut settings.0).as_bool() {
                     row.resolution = format!("{}x{}", settings.0.dmPelsWidth, settings.0.dmPelsHeight);
-                    row.freq = format!("{}", settings.0.dmDisplayFrequency);
+                    row.freq = format!("{}Hz", settings.0.dmDisplayFrequency);
                     row.x = settings.0.Anonymous1.Anonymous2.dmPosition.x;
                     row.y = settings.0.Anonymous1.Anonymous2.dmPosition.y;
-                    let (dpi_label, factor) = get_dpi_data(POINT { x: row.x, y: row.y });
-                    row.dpi = dpi_label;
-                    row.scale_factor = factor;
+                    
+                    let h_monitor = MonitorFromPoint(POINT { x: row.x, y: row.y }, MONITOR_DEFAULTTONEAREST);
+                    let (mut dx, mut dy) = (0, 0);
+                    if GetDpiForMonitor(h_monitor, MDT_EFFECTIVE_DPI, &mut dx, &mut dy).is_ok() {
+                        row.scale_factor = dx as f32 / 96.0;
+                        row.dpi = format!("{}%", (row.scale_factor * 100.0) as i32);
+                    }
                 }
             }
             rows.push(row);
         }
     }
     Ok(rows)
-}
-
-fn get_dpi_data(pt: POINT) -> (String, f32) {
-    unsafe {
-        let h_monitor = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
-        let (mut dx, mut dy) = (0, 0);
-        if GetDpiForMonitor(h_monitor, MDT_EFFECTIVE_DPI, &mut dx, &mut dy).is_ok() {
-            let factor = dx as f32 / 96.0;
-            return (format!("{}%", (factor * 100.0).round() as i32), factor);
-        }
-    }
-    ("100%".into(), 1.0)
 }
 
 pub fn scan_registry_monitors() -> Vec<DisplayRow> {
@@ -99,6 +105,7 @@ pub fn scan_registry_monitors() -> Vec<DisplayRow> {
                                 freq: "N/A".into(), dpi: "N/A".into(), scale_factor: 1.0, position_instance: inst_id.clone(),
                                 active: "STORED".into(), primary: "N/A".into(), serial: sn, size_mm: size,
                                 persistent_id: 0, x: 0, y: 0, is_primary: false,
+                                ddc: None, // Fix für E0063
                             });
                         }
                     }
@@ -120,7 +127,5 @@ fn parse_edid(bytes: &[u8]) -> (String, String, String) {
     }
     let w_mm = (bytes[21] as u32) * 10;
     let h_mm = (bytes[22] as u32) * 10;
-    let w_px = (bytes[58] as u32 & 0xF0) << 4 | (bytes[56] as u32);
-    let h_px = (bytes[61] as u32 & 0xF0) << 4 | (bytes[59] as u32);
-    (sn, format!("{}x{}mm", w_mm, h_mm), format!("{}x{}", w_px, h_px))
+    (sn, format!("{}x{}mm", w_mm, h_mm), "N/A".into())
 }

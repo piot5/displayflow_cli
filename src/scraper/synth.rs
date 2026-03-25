@@ -1,13 +1,23 @@
 use std::collections::HashMap;
 use winreg::enums::*;
 use winreg::RegKey;
-use crate::scraper::{DisplayRow, scan};
+use windows::Win32::Graphics::Gdi::*;
+use windows::Win32::Foundation::LPARAM;
+use crate::scraper::{DisplayRow, scan, ddc};
 
 const REG_PATH: &str = r"Software\DisplayFlow\Mapping";
 
 pub fn collect_inventory() -> Vec<DisplayRow> {
     let live_data = scan::scan_gdi_live().unwrap_or_default();
     let registry_data = scan::scan_registry_monitors();
+    
+    // Fix: Explizite Typ-Annotation für den Enum-Callback
+    let mut ddc_map: Vec<(HMONITOR, ddc::DdcCaps)> = Vec::new();
+    unsafe {
+        // Fix: Cast auf isize statt i_isize
+        let _ = EnumDisplayMonitors(None, None, Some(ddc::monitor_enum_proc), LPARAM(&mut ddc_map as *mut _ as isize));
+    }
+
     let mut mapping = load_mapping();
     let mut mapping_changed = false;
     let mut final_results = Vec::new();
@@ -16,35 +26,33 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
     for mut synth in live_data {
         if synth.position_instance.is_empty() { continue; }
         synth.source = "synth_data".into();
+        
         if let Some(reg) = find_registry_match(&synth.position_instance, &registry_data) {
             synth.serial = reg.serial.clone();
             synth.size_mm = reg.size_mm.clone();
         }
+
+        // DDC Daten zuweisen
+        for (h_mon, caps) in &ddc_map {
+            let mut info = MONITORINFO::default();
+            info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+            unsafe {
+                if GetMonitorInfoW(*h_mon, &mut info).as_bool() {
+                    if synth.x >= info.rcMonitor.left && synth.x < info.rcMonitor.right &&
+                       synth.y >= info.rcMonitor.top && synth.y < info.rcMonitor.bottom {
+                        synth.ddc = Some(caps.clone());
+                    }
+                }
+            }
+        }
+
         let (path_key, precise_key) = generate_keys(&synth);
         synth.persistent_id = determine_id(&mut mapping, &path_key, &precise_key, &mut next_id, &mut mapping_changed);
         final_results.push(synth);
     }
 
     if mapping_changed { save_mapping(&mapping); }
-    
-    normalize_synth_coordinates(&mut final_results);
-    
     final_results
-}
-
-fn normalize_synth_coordinates(rows: &mut [DisplayRow]) {
-    rows.sort_by_key(|r| (r.x, r.y));
-    let mut offset_x = 0;
-    for row in rows {
-        if row.is_primary {
-            row.x = 0;
-            row.y = 0;
-        } else {
-            row.x = offset_x;
-        }
-        let width_px: i32 = row.resolution.split('x').next().unwrap_or("0").parse().unwrap_or(0);
-        offset_x += (width_px as f32 / row.scale_factor) as i32;
-    }
 }
 
 fn find_registry_match<'a>(hw_path: &str, registry: &'a [DisplayRow]) -> Option<&'a DisplayRow> {
@@ -57,7 +65,11 @@ fn find_registry_match<'a>(hw_path: &str, registry: &'a [DisplayRow]) -> Option<
 
 fn generate_keys(row: &DisplayRow) -> (String, String) {
     let path_key = row.position_instance.clone();
-    let precise_key = if row.serial != "N/A" && !row.serial.is_empty() { format!("{}#{}", path_key, row.serial) } else { path_key.clone() };
+    let precise_key = if row.serial != "N/A" && !row.serial.is_empty() { 
+        format!("{}#{}", path_key, row.serial) 
+    } else { 
+        path_key.clone() 
+    };
     (path_key, precise_key)
 }
 
@@ -83,7 +95,7 @@ fn load_mapping() -> HashMap<String, u32> {
     let mut map = HashMap::new();
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     if let Ok(key) = hkcu.open_subkey(REG_PATH) {
-        for (name, value) in key.enum_values().map_while(Result::ok) {
+        for (name, value) in key.enum_values().map_while(std::result::Result::ok) {
             if value.vtype == REG_DWORD {
                 if let Ok(bytes) = value.bytes.try_into() {
                     map.insert(name, u32::from_ne_bytes(bytes));

@@ -1,9 +1,13 @@
 use std::iter;
+use std::thread;
+use std::time::Duration;
+use std::process::Command;
 use windows::core::PCWSTR;
 use windows::Win32::Graphics::Gdi::*;
+use windows::Win32::Foundation::{LPARAM, RECT, BOOL};
 use winreg::RegKey;
 use winreg::enums::HKEY_CURRENT_USER;
-use crate::scraper::{self, DisplayTask, DisplayRow, scan::{GdiDevice, GdiDevMode}};
+use crate::scraper::{self, DisplayTask, DisplayRow, scan::{GdiDevice, GdiDevMode}, ddc};
 use crate::cli::parse_task;
 
 pub struct DisplayRestoreGuard {
@@ -30,7 +34,8 @@ impl Drop for DisplayRestoreGuard {
     }
 }
 
-pub struct DFEngine; 
+pub struct DFEngine;
+
 impl DFEngine {
     pub fn new() -> Self { Self }
 
@@ -55,16 +60,70 @@ impl DFEngine {
     }
 
     pub fn apply(&self, tasks: Vec<DisplayTask>, _clones: Vec<(String, String)>) {
+        let directions: Vec<String> = tasks.iter()
+            .filter_map(|t| t.animation.clone())
+            .filter(|s| s != "0")
+            .collect();
+
+        if !directions.is_empty() {
+            thread::spawn(move || {
+                let mut cmd = Command::new("screen_animation.exe");
+                cmd.arg("--direction");
+                for dir in directions {
+                    cmd.arg(dir);
+                }
+                let _ = cmd.spawn();
+            });
+            thread::sleep(Duration::from_secs(3));
+        }
+
         let inv = self.get_active_inventory();
         let mut sorted_tasks = tasks.clone();
         sorted_tasks.sort_by_key(|t| !t.is_primary);
         let mut staged_count = 0;
+
         for task in &sorted_tasks {
-            if let Some(dev) = inv.iter().find(|r| self.match_display(r, &task.query)) {
-                if self.stage_config(&dev.name_id, task) { staged_count += 1; }
+            if let Some(row) = inv.iter().find(|r| self.match_display(r, &task.query)) {
+                if self.stage_config(&row.name_id, task) {
+                    staged_count += 1;
+                    if task.brightness.is_some() || task.contrast.is_some() {
+                        self.apply_ddc_by_name(&row.name_id, task.brightness.unwrap_or(100), task.contrast.unwrap_or(100));
+                    }
+                }
             }
         }
         if staged_count > 0 { self.commit_registry(); }
+    }
+
+    fn apply_ddc_by_name(&self, name: &str, brightness: u32, contrast: u32) {
+        unsafe {
+            struct DdcMatch { target: String, b: u32, c: u32 }
+            let mut data = DdcMatch { target: name.to_string(), b: brightness, c: contrast };
+            
+            unsafe extern "system" fn callback(h_mon: HMONITOR, _: HDC, _: *mut RECT, lparam: LPARAM) -> BOOL {
+                let m = &mut *(lparam.0 as *mut DdcMatch);
+                let mut mi = MONITORINFOEXW::default();
+                mi.monitorInfo.cbSize = std::mem::size_of::<MONITORINFOEXW>() as u32;
+                if GetMonitorInfoW(h_mon, &mut mi.monitorInfo).as_bool() {
+                    let device_name = String::from_utf16_lossy(&mi.szDevice)
+                        .trim_matches(char::from(0)).to_string();
+                    if device_name == m.target {
+                        ddc::set_monitor_vcp(h_mon, Some(m.b), Some(m.c));
+                    }
+                }
+                BOOL(1)
+            }
+            let _ = EnumDisplayMonitors(None, None, Some(callback), LPARAM(&mut data as *mut _ as isize));
+        }
+    }
+
+    pub fn list_suites(&self) -> Vec<String> {
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        if let Ok(key) = hkcu.open_subkey(r"Software\DisplayFlow\Suites") {
+            key.enum_values().map_while(std::result::Result::ok).map(|(name, _)| name).collect()
+        } else {
+            Vec::new()
+        }
     }
 
     pub fn apply_registry_suite(&self, name: &str, silent: bool) -> anyhow::Result<()> {
@@ -148,7 +207,9 @@ impl DFEngine {
 
     fn match_display(&self, row: &DisplayRow, query: &str) -> bool {
         let q = query.to_uppercase();
-        row.persistent_id.to_string() == q || row.name_id.to_uppercase() == q 
+        row.persistent_id.to_string() == q 
+            || row.name_id.to_uppercase() == q 
+            || row.serial.to_uppercase() == q
             || row.position_instance.split('\\').nth(1).map_or(false, |s| s.to_uppercase() == q)
     }
 
@@ -160,21 +221,35 @@ impl DFEngine {
             let mut dm = GdiDevMode::new();
             if EnumDisplaySettingsW(PCWSTR(name_u16.as_ptr()), ENUM_CURRENT_SETTINGS, &mut dm.0).as_bool() {
                 let rotation = match task.direction.as_deref() {
-                    Some("90") => DMDO_90, Some("180") => DMDO_180, Some("270") => DMDO_270, _ => DMDO_DEFAULT
+                    Some("90") | Some("right") => DMDO_90, 
+                    Some("180") | Some("inverted") => DMDO_180, 
+                    Some("270") | Some("left") => DMDO_270, 
+                    _ => DMDO_DEFAULT
                 };
+                
                 let (w, h) = if rotation == DMDO_90 || rotation == DMDO_270 { (task.height, task.width) } else { (task.width, task.height) };
+                
                 dm.0.dmPelsWidth = w as u32;
                 dm.0.dmPelsHeight = h as u32;
                 dm.0.dmFields |= DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
                 dm.0.Anonymous1.Anonymous2.dmPosition.x = task.x;
                 dm.0.Anonymous1.Anonymous2.dmPosition.y = task.y;
                 dm.0.Anonymous1.Anonymous2.dmDisplayOrientation = rotation;
+                
                 if task.freq > 0 {
                     dm.0.dmDisplayFrequency = task.freq;
                     dm.0.dmFields |= DM_DISPLAYFREQUENCY;
                 }
+                
                 let mut flags = CDS_UPDATEREGISTRY | CDS_NORESET;
                 if task.is_primary { flags |= CDS_SET_PRIMARY; }
+                
+                if task.width == 0 && task.height == 0 {
+                    dm.0.dmPelsWidth = 0;
+                    dm.0.dmPelsHeight = 0;
+                    dm.0.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
+                }
+
                 ChangeDisplaySettingsExW(PCWSTR(name_u16.as_ptr()), Some(&dm.0), None, flags, None) == DISP_CHANGE_SUCCESSFUL
             } else { false }
         }
