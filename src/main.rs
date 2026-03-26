@@ -17,7 +17,7 @@ fn main() -> Result<()> {
     let args = Cli::parse();
     set_dpi_awareness();
     
-    let engine = DFEngine::new();
+    let engine = DFEngine::new(); 
     let bridge = IOBridge::new(args.daemon);
 
     if args.scan {
@@ -25,10 +25,8 @@ fn main() -> Result<()> {
         for row in data { 
             bridge.output("SCAN_RES", &row); 
         }
-        
         let suites = engine.list_suites();
         bridge.output("SUITES_RES", &suites);
-        
         return Ok(());
     }
 
@@ -38,6 +36,7 @@ fn main() -> Result<()> {
 
     if let Some(suite_name) = args.apply_suite {
         engine.apply_registry_suite(&suite_name, args.silent)?;
+        std::thread::sleep(std::time::Duration::from_millis(200));
         return Ok(());
     }
 
@@ -61,15 +60,11 @@ fn main() -> Result<()> {
         }
 
         DeploymentManager::create_suite(
-            &save_name, &tasks, hk, args.post, 
-            args.linkdesktop.is_some(), 
-            args.linkdesktop.as_deref() == Some("h")
+            &save_name, &tasks, hk, args.post, args.linkdesktop.is_some(), args.hotkey
         )?;
-        return Ok(());
-    }
-
-    if !tasks.is_empty() {
+    } else if !tasks.is_empty() {
         engine.apply(tasks, vec![]);
+        std::thread::sleep(std::time::Duration::from_millis(200));
     }
 
     Ok(())

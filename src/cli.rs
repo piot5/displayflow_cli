@@ -30,8 +30,14 @@ pub fn parse_task(raw: &str) -> Option<DisplayTask> {
         is_primary: p.get(5).map(|&s| s == "1").unwrap_or(false),
         direction: p.get(6).filter(|&&s| s != "0").map(|&s| s.to_string()),
         freq: p.get(7).and_then(|&s| s.parse().ok()).unwrap_or(0),
-        brightness: p.get(8).and_then(|&s| s.parse().ok()),
-        contrast: p.get(9).and_then(|&s| s.parse().ok()),
+        brightness: p.get(8).and_then(|&s| {
+            let val = s.parse::<u32>().unwrap_or(999);
+            if val <= 100 { Some(val) } else { None }
+        }),
+        contrast: p.get(9).and_then(|&s| {
+            let val = s.parse::<u32>().unwrap_or(999);
+            if val <= 100 { Some(val) } else { None }
+        }),
         animation: p.get(10).filter(|&&s| s != "0").map(|&s| s.to_string()),
     })
 }

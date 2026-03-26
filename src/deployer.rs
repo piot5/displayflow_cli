@@ -57,7 +57,7 @@ impl DeploymentManager {
             let ani = t.animation.as_deref().unwrap_or("0");
             let dir = t.direction.as_deref().unwrap_or("0");
             format!(
-                "{}:{}:{}:{}:{}:{}:{}:{}:0:0:{}", 
+                "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}", 
                 t.query, 
                 t.width, 
                 t.height, 
@@ -66,6 +66,8 @@ impl DeploymentManager {
                 if t.is_primary { "1" } else { "0" },
                 dir,
                 t.freq,
+                t.brightness.unwrap_or(999),
+                t.contrast.unwrap_or(999),
                 ani
             )
         }).collect::<Vec<_>>().join(",")
@@ -79,7 +81,7 @@ impl DeploymentManager {
                 if (GetAsyncKeyState(VK_MENU.0 as i32) as u16 & 0x8000) != 0 { if !combo.contains(&"Alt".into()) { combo.push("Alt".into()); } }
                 if (GetAsyncKeyState(VK_SHIFT.0 as i32) as u16 & 0x8000) != 0 { if !combo.contains(&"Shift".into()) { combo.push("Shift".into()); } }
 
-                for k in 0x41..0x5B { // A-Z
+                for k in 0x41..0x5B {
                     if (GetAsyncKeyState(k) as u16 & 0x8000) != 0 {
                         combo.push((k as u8 as char).to_string());
                         let res = combo.join("+");
