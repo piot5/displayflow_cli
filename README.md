@@ -1,4 +1,4 @@
-Alternative to Monitor Profile Switcher", "Command line display manager for Windows 10/11", "Rust-based Monitor Tool
+Alternative to Monitor Profile Switcher Command line display manager for Windows 10/11, Rust-based Monitor Tool
 
 https://github.com/user-attachments/assets/bc2f5d3d-7972-4fee-aa49-798a3a741076
 
