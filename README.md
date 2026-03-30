@@ -1,5 +1,3 @@
-Star the repo if you like it
-
 Alternative Multi Monitor Tool.Profile Switcher Command line display manager for Windows 10/11, Rust-based Monitor Config Tool
 
 https://github.com/user-attachments/assets/bc2f5d3d-7972-4fee-aa49-798a3a741076
@@ -81,3 +79,5 @@ How it works
     Persistent IDs: Monitors are identified by their hardware signature (synth.rs), so your settings survive a reboot or GPU port swap.
 
     Smart Animation: If an animation direction is present in the task string, screen_animation.exe is triggered instantly in a background thread to mask the Windows display-driver handshake.
+    
+If this tool saved you some time, consider leaving a ⭐ - it helps others find the project!
