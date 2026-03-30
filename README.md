@@ -1,4 +1,6 @@
-Alternativ Multi Monitor tool Profile Switcher Command line display manager for Windows 10/11, Rust-based Monitor Config Tool
+Star the repo if you like it
+
+Alternative Multi Monitor Tool.Profile Switcher Command line display manager for Windows 10/11, Rust-based Monitor Config Tool
 
 https://github.com/user-attachments/assets/bc2f5d3d-7972-4fee-aa49-798a3a741076
 
