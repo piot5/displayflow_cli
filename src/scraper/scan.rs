@@ -22,7 +22,6 @@ pub struct GdiDevMode(pub DEVMODEW);
 impl GdiDevMode {
     pub fn new() -> Self {
         let mut dm = DEVMODEW::default();
-// Mandatory: cb must be set to the size of the struct for WinAPI calls.
         dm.dmSize = mem::size_of::<DEVMODEW>() as u16;
         Self(dm)
     }
@@ -32,19 +31,16 @@ pub fn set_dpi_awareness() {
     unsafe { let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); } 
 }
 
-/// Scans currently managed GDI subsystem.
 pub fn scan_gdi_live() -> Result<Vec<DisplayRow>> {
     let mut rows = Vec::new();
     unsafe {
-
-// Iterate through possible display device indices (max 64).
         for i in 0..64 {
             let mut device = GdiDevice::new();
             if !EnumDisplayDevicesW(None, i, device.as_mut_ptr(), 0).as_bool() { break; }
             
             let device_name_raw = PCWSTR::from_raw(device.0.DeviceName.as_ptr());
             let device_name = String::from_utf16_lossy(&device.0.DeviceName).trim_matches('\0').to_string();
-	// Attempt to find the monitor linked to the adapter.
+            
             let mut monitor_device = GdiDevice::new();
             let mut hw_id_path = String::new();
             if EnumDisplayDevicesW(device_name_raw, 0, monitor_device.as_mut_ptr(), 0).as_bool() {
@@ -93,7 +89,8 @@ pub fn scan_gdi_live() -> Result<Vec<DisplayRow>> {
     }
     Ok(rows)
 }
-/// Crawls Windows Registry for monitors ever connected to the system.pub fn scan_registry_monitors() -> Vec<DisplayRow> {
+
+pub fn scan_registry_monitors() -> Vec<DisplayRow> {
     let mut results = Vec::new();
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
     if let Ok(display_key) = hklm.open_subkey(r"SYSTEM\CurrentControlSet\Enum\DISPLAY") {
@@ -119,12 +116,9 @@ pub fn scan_gdi_live() -> Result<Vec<DisplayRow>> {
     results
 }
 
-/// EDID parser to extract Serial Number and physical dimensions.
 fn parse_edid(bytes: &[u8]) -> (String, String, String) {
     if bytes.len() < 128 { return ("N/A".into(), "N/A".into(), "N/A".into()); }
     let mut sn = "N/A".to_string();
-
-// EDID descriptor blocks for serial number string
     for offset in [54, 72, 90, 108] {
         if offset + 18 <= bytes.len() && &bytes[offset..offset+4] == b"\x00\x00\x00\xff" {
             sn = String::from_utf8_lossy(&bytes[offset+4..offset+18]).trim().trim_matches('\0').to_string();
