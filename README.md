@@ -4,7 +4,7 @@ https://github.com/user-attachments/assets/bc2f5d3d-7972-4fee-aa49-798a3a741076
 
 # displayflow v0.1.2
 
-[![Download Latest Release](https://img.shields.io/badge/Download-DisplayFlow_v0.9.4-blue?style=for-the-badge&logo=windows)](https://github.com/piot5/displayflow_cli/releases/latest/download/displayflow.zip)
+[![Download Latest Release](https://img.shields.io/badge/Download-DisplayFlow-blue?style=for-the-badge&logo=windows)](https://github.com/piot5/displayflow_cli/releases/latest/download/displayflow.zip)
 
 
 

@@ -4,7 +4,6 @@ Cargo.lock
 .env
 config.toml
 
-monitor_db.json
 .env
 
 

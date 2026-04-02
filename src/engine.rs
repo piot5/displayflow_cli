@@ -281,40 +281,64 @@ impl DFEngine {
         unsafe { let _ = ChangeDisplaySettingsExW(PCWSTR::null(), None, None, CDS_TYPE(0), None); } 
     }
 
-    fn stage_config(&self, name: &str, task: &DisplayTask) -> bool {
-        let name_u16: Vec<u16> = name.encode_utf16().chain(iter::once(0)).collect();
-        unsafe {
-            let mut dm = GdiDevMode::new();
-            if EnumDisplaySettingsW(PCWSTR(name_u16.as_ptr()), ENUM_CURRENT_SETTINGS, &mut dm.0).as_bool() {
-                let rotation = match task.direction.as_deref() {
-                    Some("90") | Some("right") => DMDO_90, 
-                    Some("180") | Some("inverted") => DMDO_180, 
-                    Some("270") | Some("left") => DMDO_270, 
-                    _ => DMDO_DEFAULT
-                };
+   fn stage_config(&self, name: &str, task: &DisplayTask) -> bool {
+    let name_u16: Vec<u16> = name.encode_utf16().chain(iter::once(0)).collect();
+    unsafe {
+        let mut dm = GdiDevMode::new();
+        if EnumDisplaySettingsW(PCWSTR(name_u16.as_ptr()), ENUM_CURRENT_SETTINGS, &mut dm.0).as_bool() {
+            // 1. Determine rotation
+            let rotation = match task.direction.as_deref() {
+                Some("90") | Some("right") => DMDO_90, 
+                Some("180") | Some("inverted") => DMDO_180, 
+                Some("270") | Some("left") => DMDO_270, 
+                _ => DMDO_DEFAULT
+            };
 
-	// Swap dimensions for portrait modes.
-                let (w, h) = if rotation == DMDO_90 || rotation == DMDO_270 { (task.height, task.width) } else { (task.width, task.height) };
-                dm.0.dmPelsWidth = w as u32;
-                dm.0.dmPelsHeight = h as u32;
-                dm.0.dmFields |= DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
-                dm.0.Anonymous1.Anonymous2.dmPosition.x = task.x;
-                dm.0.Anonymous1.Anonymous2.dmPosition.y = task.y;
-                dm.0.Anonymous1.Anonymous2.dmDisplayOrientation = rotation;
-                if task.freq > 0 {
-                    dm.0.dmDisplayFrequency = task.freq;
-                    dm.0.dmFields |= DM_DISPLAYFREQUENCY;
-                }
-                let mut flags = CDS_UPDATEREGISTRY | CDS_NORESET;
-                if task.is_primary { flags |= CDS_SET_PRIMARY; }
-	// Handle monitor disabling (0x0 res).
-                if task.width == 0 && task.height == 0 {
-                    dm.0.dmPelsWidth = 0;
-                    dm.0.dmPelsHeight = 0;
-                    dm.0.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
-                }
-                ChangeDisplaySettingsExW(PCWSTR(name_u16.as_ptr()), Some(&dm.0), None, flags, None) == DISP_CHANGE_SUCCESSFUL
-            } else { false }
+            // 2. Adjust dimensions based on rotation
+            let (w, h) = if rotation == DMDO_90 || rotation == DMDO_270 { 
+                (task.height, task.width) 
+            } else { 
+                (task.width, task.height) 
+            };
+
+            dm.0.dmPelsWidth = w as u32;
+            dm.0.dmPelsHeight = h as u32;
+            
+            // 3. Mark relevant fields
+            dm.0.dmFields |= DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
+            dm.0.Anonymous1.Anonymous2.dmPosition.x = task.x;
+            dm.0.Anonymous1.Anonymous2.dmPosition.y = task.y;
+            dm.0.Anonymous1.Anonymous2.dmDisplayOrientation = rotation;
+
+            // 4. Optional frequency setting
+            if task.freq > 0 {
+                dm.0.dmDisplayFrequency = task.freq;
+                dm.0.dmFields |= DM_DISPLAYFREQUENCY;
+            }
+
+            // 5. Flags for staging
+            let mut flags = CDS_UPDATEREGISTRY | CDS_NORESET;
+            if task.is_primary { flags |= CDS_SET_PRIMARY; }
+
+            // 6. Disable monitor if resolution is 0/0
+            // Note: We must mark dmFields to ensure Windows doesn't ignore the 0 values.
+            if task.width == 0 && task.height == 0 {
+                dm.0.dmPelsWidth = 0;
+                dm.0.dmPelsHeight = 0;
+                dm.0.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
+            }
+
+            // 7. Write to registry without reset
+            ChangeDisplaySettingsExW(
+                PCWSTR(name_u16.as_ptr()), 
+                Some(&dm.0), 
+                None, 
+                flags, 
+                None
+            ) == DISP_CHANGE_SUCCESSFUL
+        } else { 
+            false 
         }
     }
+}
 }
