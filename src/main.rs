@@ -20,6 +20,7 @@ fn main() -> Result<()> {
     let engine = DFEngine::new(); 
     let bridge = IOBridge::new(args.daemon);
 
+    // Scan system and list available suites
     if args.scan {
         let (data, _) = engine.inventory();
         for row in data { 
@@ -30,10 +31,12 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // Run as background service
     if args.daemon {
         return daemon::start_daemon_service(engine);
     }
 
+    // Apply specific registry configuration
     if let Some(suite_name) = args.apply_suite {
         engine.apply_registry_suite(&suite_name, args.silent)?;
         std::thread::sleep(std::time::Duration::from_millis(200));
@@ -42,12 +45,14 @@ fn main() -> Result<()> {
 
     let mut tasks: Vec<DisplayTask> = args.tasks.iter().filter_map(|s| parse_task(s)).collect();
 
+    // Set global animation for tasks
     if let Some(ref ani) = args.animation {
         for task in &mut tasks {
             task.animation = Some(ani.clone());
         }
     }
 
+    // Save current configuration or tasks to a suite
     if let Some(save_name) = args.save {
         if tasks.is_empty() {
             let (inv, _) = engine.inventory();
@@ -63,6 +68,7 @@ fn main() -> Result<()> {
             &save_name, &tasks, hk, args.post, args.linkdesktop.is_some(), args.hotkey
         )?;
     } else if !tasks.is_empty() {
+        // Apply display tasks immediately
         engine.apply(tasks, vec![]);
         std::thread::sleep(std::time::Duration::from_millis(200));
     }

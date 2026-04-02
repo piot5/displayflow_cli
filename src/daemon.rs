@@ -14,10 +14,13 @@ const WM_TRAY_ICON: u32 = WM_USER + 1;
 const TRAY_ICON_ID: u32 = 1;
 const IDM_EXIT: usize = 1001;
 
+// Global engine reference for the window procedure callback
 static mut GLOBAL_ENGINE: Option<DFEngine> = None;
 
 pub fn start_daemon_service(engine: DFEngine) -> Result<()> {
     unsafe { GLOBAL_ENGINE = Some(engine); }
+
+// Ensure clean exit on Ctrl+C
     ctrlc::set_handler(move || { process::exit(0); }).expect("Error setting Ctrl-C handler");
 
     unsafe {
@@ -31,6 +34,7 @@ pub fn start_daemon_service(engine: DFEngine) -> Result<()> {
         };
         RegisterClassW(&wc);
 
+// Create a message-only window
         let hwnd = CreateWindowExW(
             WINDOW_EX_STYLE::default(),
             class_name,
@@ -108,6 +112,8 @@ unsafe fn setup_tray_icon(hwnd: HWND) {
 extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
         match msg {
+
+// Handle tray icon events (defined via uCallbackMessage in NOTIFYICONDATAW)
             WM_TRAY_ICON if lparam.0 as u32 == WM_RBUTTONUP => {
                 let mut cursor = POINT::default();
                 let _ = GetCursorPos(&mut cursor);
@@ -123,6 +129,8 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
                 let _ = DestroyWindow(hwnd); 
                 LRESULT(0) 
             }
+
+// Handle global system hotkeys
             WM_HOTKEY => {
                 let idx = wparam.0;
                 thread::spawn(move || {
@@ -132,6 +140,8 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
                 });
                 LRESULT(0)
             }
+
+// Cleanup tray icon before the window is closed
             WM_DESTROY => {
                 let nid = NOTIFYICONDATAW { 
                     cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32, 
@@ -143,6 +153,8 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
                 PostQuitMessage(0);
                 LRESULT(0)
             }
+
+// Fallback to default Windows behavior for unhandled messages
             _ => DefWindowProcW(hwnd, msg, wparam, lparam),
         }
     }

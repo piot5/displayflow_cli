@@ -7,6 +7,8 @@ use crate::scraper::{DisplayRow, scan, ddc};
 
 const REG_PATH: &str = r"Software\DisplayFlow\Mapping";
 
+
+/// Merges live GDI data with static Registry data and DDC
 pub fn collect_inventory() -> Vec<DisplayRow> {
     let live_data = scan::scan_gdi_live().unwrap_or_default();
     let registry_data = scan::scan_registry_monitors();
@@ -46,15 +48,17 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
             }
         }
 
+// Generate keys for ID persistence (Precedence: Path+Serial > Path).
         let (path_key, precise_key) = generate_keys(&synth);
         synth.persistent_id = determine_id(&mut mapping, &path_key, &precise_key, &mut next_id, &mut mapping_changed);
         final_results.push(synth);
     }
-
+// Persist mapping changes to HKCU if any new IDs were assigned or upgraded
     if mapping_changed { save_mapping(&mapping); }
     final_results
 }
 
+/// Matches a live hardware path against registry keys using case-insensitive substring search.
 fn find_registry_match<'a>(hw_path: &str, registry: &'a [DisplayRow]) -> Option<&'a DisplayRow> {
     let uc_path = hw_path.to_uppercase();
     registry.iter().find(|r| {
@@ -63,6 +67,7 @@ fn find_registry_match<'a>(hw_path: &str, registry: &'a [DisplayRow]) -> Option<
     })
 }
 
+/// Creates a hierarchy of keys for identification.
 fn generate_keys(row: &DisplayRow) -> (String, String) {
     let path_key = row.position_instance.clone();
     let precise_key = if row.serial != "N/A" && !row.serial.is_empty() { 
@@ -73,6 +78,8 @@ fn generate_keys(row: &DisplayRow) -> (String, String) {
     (path_key, precise_key)
 }
 
+/// Logic to retrieve or create a unique persistent ID.
+/// Automatically upgrades "Path-only" keys to "Path+Serial" keys if a serial becomes available.
 fn determine_id(mapping: &mut HashMap<String, u32>, path_key: &str, precise_key: &str, next_id: &mut u32, changed: &mut bool) -> u32 {
     if let Some(&id) = mapping.get(precise_key) { return id; }
     if let Some(&id) = mapping.get(path_key) {

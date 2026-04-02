@@ -24,6 +24,7 @@ impl DeploymentManager {
         let (key, _) = hkcu.create_subkey(SUITE_REG_PATH)
             .context("Failed to access registry")?;
 
+        // Construct the config string for the registry value
         let mut suite_config = format!("tasks|{}", task_data);
         if let Some(cmd) = post_cmd { suite_config.push_str(&format!(";post|{}", cmd)); }
         
@@ -33,20 +34,12 @@ impl DeploymentManager {
 
         key.set_value(base_name, &suite_config)?;
 
+        // Optional: Create a desktop shortcut via PowerShell
         if create_link {
-            let exe_path = env::current_exe()?
-                .to_str()
-                .ok_or_else(|| anyhow!("Path error"))?
-                .to_string();
-            let icon_path = env::current_dir()?
-                .join("DF.ico")
-                .to_str()
-                .unwrap_or("")
-                .to_string();
-            
-            let shell_hk = if link_with_hotkey { hotkey.unwrap_or_default() } else { String::new() };
-
-            Self::create_desktop_shortcut(base_name, &exe_path, &format!("--apply-suite \"{}\"", base_name), &icon_path, &shell_hk)?;
+            let exe_path = env::current_exe()?.to_string_lossy().to_string();
+            let args = format!("--apply-suite \"{}\"", base_name);
+            let hk_str = if link_with_hotkey { hotkey.unwrap_or_default() } else { "".into() };
+            Self::create_desktop_shortcut(base_name, &exe_path, &args, &exe_path, &hk_str)?;
         }
 
         Ok(())
@@ -54,37 +47,33 @@ impl DeploymentManager {
 
     fn format_task_args(tasks: &[DisplayTask]) -> String {
         tasks.iter().map(|t| {
-            let ani = t.animation.as_deref().unwrap_or("0");
-            let dir = t.direction.as_deref().unwrap_or("0");
-            format!(
-                "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}", 
-                t.query, 
-                t.width, 
-                t.height, 
-                t.x, 
-                t.y, 
+            format!("{}:{}:{}:{}:{}:{}:{}:{}:{}:{}", 
+                t.query, t.width, t.height, t.x, t.y, 
                 if t.is_primary { "1" } else { "0" },
-                dir,
+                t.direction.as_deref().unwrap_or("0"),
                 t.freq,
-                t.brightness.unwrap_or(999),
-                t.contrast.unwrap_or(999),
-                ani
+                t.brightness.unwrap_or(0),
+                t.contrast.unwrap_or(0)
             )
         }).collect::<Vec<_>>().join(",")
     }
 
+    // Captures a hotkey by polling keyboard state (Blocking call)
     pub fn capture_hotkey() -> Option<String> {
-        let mut combo = Vec::new();
+        println!("Press your Hotkey combination (e.g., Ctrl+Alt+D)...");
         loop {
             unsafe {
-                if (GetAsyncKeyState(VK_CONTROL.0 as i32) as u16 & 0x8000) != 0 { if !combo.contains(&"Ctrl".into()) { combo.push("Ctrl".into()); } }
-                if (GetAsyncKeyState(VK_MENU.0 as i32) as u16 & 0x8000) != 0 { if !combo.contains(&"Alt".into()) { combo.push("Alt".into()); } }
-                if (GetAsyncKeyState(VK_SHIFT.0 as i32) as u16 & 0x8000) != 0 { if !combo.contains(&"Shift".into()) { combo.push("Shift".into()); } }
+                let mut combo = Vec::new();
+                if (GetAsyncKeyState(VK_CONTROL.0 as i32) as u16 & 0x8000) != 0 { combo.push("Ctrl".into()); }
+                if (GetAsyncKeyState(VK_MENU.0 as i32) as u16 & 0x8000) != 0 { combo.push("Alt".into()); }
+                if (GetAsyncKeyState(VK_SHIFT.0 as i32) as u16 & 0x8000) != 0 { combo.push("Shift".into()); }
 
+                // Check A-Z keys
                 for k in 0x41..0x5B {
-                    if (GetAsyncKeyState(k) as u16 & 0x8000) != 0 {
+                    if (GetAsyncKeyState(k as i32) as u16 & 0x8000) != 0 {
                         combo.push((k as u8 as char).to_string());
                         let res = combo.join("+");
+                        // Wait until keys are released to avoid double-triggering
                         while Self::is_any_modifier_down() { thread::sleep(Duration::from_millis(10)); }
                         return Some(res);
                     }
@@ -106,11 +95,18 @@ impl DeploymentManager {
         let script = format!(
             "$ws = New-Object -ComObject WScript.Shell; \
              $lnk = $ws.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'df_{}.lnk')); \
-             $lnk.TargetPath = '{}'; $lnk.Arguments = '{}'; $lnk.Hotkey = '{}'; \
-             if (Test-Path '{}') {{ $lnk.IconLocation = '{}' }}; $lnk.Save();",
-            name, exe, args, hk, icon, icon
+             $lnk.TargetPath = '{}'; \
+             $lnk.Arguments = '{}'; \
+             $lnk.IconLocation = '{},0'; \
+             if('{}' -ne '') {{ $lnk.Hotkey = '{}'; }} \
+             $lnk.Save()",
+            name, exe, args, icon, hk, hk
         );
-        let _ = Command::new("powershell").args(["-Command", &script]).status();
+
+        Command::new("powershell")
+            .args(["-Command", &script])
+            .output()
+            .map_err(|e| anyhow!("PS Error: {}", e))?;
         Ok(())
     }
 }
