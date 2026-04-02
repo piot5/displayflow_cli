@@ -1,7 +1,6 @@
-Alternative Multi Monitor Tool.Profile Switcher Command line display manager for Windows 10/11, Rust-based Monitor Config Tool
 ![1000004725](https://github.com/user-attachments/assets/4b1b31bb-8ece-4f0a-8a0e-12ae368e489f)
 
-
+Alternative Multi Monitor Tool.Profile Switcher Command line display manager for Windows 10/11, Rust-based Monitor Config Tool
 # displayflow v0.1.2
 
 [![Download Latest Release](https://img.shields.io/badge/Download-DisplayFlow-blue?style=for-the-badge&logo=windows)](https://github.com/piot5/displayflow_cli/releases/latest/download/displayflow.zip)
