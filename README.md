@@ -35,6 +35,9 @@ Animation	Direction for screen_animation.exe (up, down, left, right, none).
 
 Examples
 
+[unssdsfgfgd.webm](https://github.com/user-attachments/assets/b1afe52e-30ea-40f6-982a-97c6924e9c5e)
+
+
 1. Per-Monitor Animation (The "Split" Transition)
 
 If you have a vertical setup, you can trigger animations in opposite directions for a seamless transition effect.
