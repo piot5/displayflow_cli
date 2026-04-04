@@ -8,16 +8,16 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{RegisterHotKey, MOD_CONTROL, M
 use windows::Win32::UI::Shell::*;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, POINT};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use crate::engine::DFEngine;
+use crate::engine::DisplayController;
 
 const WM_TRAY_ICON: u32 = WM_USER + 1;
 const TRAY_ICON_ID: u32 = 1;
 const IDM_EXIT: usize = 1001;
 
 // Global engine reference for the window procedure callback
-static mut GLOBAL_ENGINE: Option<DFEngine> = None;
+static mut GLOBAL_ENGINE: Option<DisplayController> = None;
 
-pub fn start_daemon_service(engine: DFEngine) -> Result<()> {
+pub fn start_daemon_service(engine: DisplayController) -> Result<()> {
     unsafe { GLOBAL_ENGINE = Some(engine); }
 
 // Ensure clean exit on Ctrl+C
@@ -160,7 +160,7 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
     }
 }
 
-fn apply_registry_suite_by_index(idx: usize, engine: &DFEngine) -> Result<()> {
+fn apply_registry_suite_by_index(idx: usize, engine: &DisplayController) -> Result<()> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let key = hkcu.open_subkey(r"Software\DisplayFlow\Suites")?;
     let mut names = Vec::new();

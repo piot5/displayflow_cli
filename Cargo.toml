@@ -15,6 +15,7 @@ windows = { version = "0.52", features = [
     "Win32_UI_Shell",
 "Win32_UI_WindowsAndMessaging",
 ] }
+log = "0.4"
 anyhow = "1.0"
 thiserror = "1.0"
 winreg = "0.52"

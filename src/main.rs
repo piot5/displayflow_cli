@@ -5,23 +5,40 @@ mod daemon;
 mod cli;
 mod bridge;
 
-use engine::DFEngine;
+use engine::DisplayController;
 use scraper::{set_dpi_awareness, DisplayTask};
 use deployer::DeploymentManager;
 use cli::{Cli, parse_task};
-use bridge::IOBridge;
+use bridge::OutputManager;
 use clap::Parser;
 use anyhow::Result;
+use std::io::{self, Write};
 
 fn main() -> Result<()> {
     let args = Cli::parse();
     set_dpi_awareness();
     
-    let engine = DFEngine::new(); 
-    let bridge = IOBridge::new(args.daemon);
+    let engine = DisplayController::new(); 
+    let bridge = OutputManager::new(args.daemon);
 
     // Scan system and list available suites
     if args.scan {
+        // Warning: DDC/CI queries can cause a handshake (flicker) on certain monitors
+        if !args.silent {
+            println!("WARNING: The scan process may cause monitors to flicker briefly (Handshake).");
+            print!("Continue with scan? [y/N]: ");
+            let _ = io::stdout().flush();
+
+            let mut input = String::new();
+            io::stdin().read_line(&mut input)?;
+            let input = input.trim().to_lowercase();
+
+            if input != "y" && input != "j" {
+                println!("Scan cancelled.");
+                return Ok(());
+            }
+        }
+
         let (data, _) = engine.inventory();
         for row in data { 
             bridge.output("SCAN_RES", &row); 
@@ -68,7 +85,8 @@ fn main() -> Result<()> {
             &save_name, &tasks, hk, args.post, args.linkdesktop.is_some(), args.hotkey
         )?;
     } else if !tasks.is_empty() {
-        // Apply display tasks immediately
+        // Apply display tasks immediately using the existing 'apply' method
+        // Note: passing empty vector for second argument as per previous working state
         engine.apply(tasks, vec![]);
         std::thread::sleep(std::time::Duration::from_millis(200));
     }

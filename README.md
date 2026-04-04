@@ -18,7 +18,7 @@ PowerShell
 displayflow.exe --save Gaming --hotkey
 
 
-Comprehensive Task Format
+Task Format
 
 For manual configuration or scripting, use the following colon-separated string format. Note that the Animation Direction is defined per monitor at the very end of its string.
 
@@ -33,8 +33,7 @@ Brightness	Hardware level 0-100 (via DDC/CI).
 Animation	Direction for screen_animation.exe (up, down, left, right, none).
 
 
-
-Advanced Examples
+Examples
 
 1. Per-Monitor Animation (The "Split" Transition)
 

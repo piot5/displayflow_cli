@@ -14,11 +14,11 @@ use crate::cli::parse_task;
 
 /// Guard restores a Snapshot of the Display Config, 
 /// but also restores if the process crashes or an apply fails during scan.
-pub struct DisplayRestoreGuard {
+pub struct SnapshotRestorer {
     pub snapshot: Vec<(Vec<u16>, bool, DEVMODEW)>,
 }
 
-impl Drop for DisplayRestoreGuard {
+impl Drop for SnapshotRestorer {
     fn drop(&mut self) {
         for (name_u16, was_active, old_dm) in &self.snapshot {
             let pcw_name = PCWSTR(name_u16.as_ptr());
@@ -51,11 +51,11 @@ enum DdcCommand {
     },
 }
 
-pub struct DFEngine {
+pub struct DisplayController {
     ddc_tx: Sender<DdcCommand>,
 }
 
-impl DFEngine {
+impl DisplayController {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::channel::<DdcCommand>();
 	// DDC/CI (I2C) operations are notoriously slow and can block.
@@ -71,7 +71,9 @@ impl DFEngine {
                             thread::sleep(Duration::from_millis(800));
                         }
                         let hmon = HMONITOR(h_monitor);
-                        ddc::set_monitor_vcp(hmon, brightness, contrast);
+                        if let Err(e) = ddc::set_monitor_vcp(hmon, brightness, contrast) {
+    log::error!("DDC application failed for monitor {:?}: {}", hmon, e);
+}
                     }
                 }
             }
@@ -80,7 +82,7 @@ impl DFEngine {
         Self { ddc_tx: tx }
     }
 
-    pub fn inventory(&self) -> (Vec<DisplayRow>, DisplayRestoreGuard) {
+    pub fn inventory(&self) -> (Vec<DisplayRow>, SnapshotRestorer) {
         let snapshot = self.take_snapshot();
 // Activate all to ensure edid is parsed .
         let fallbacks = [(1920, 1080), (1280, 720)];
@@ -98,7 +100,7 @@ impl DFEngine {
             }
         }
         self.commit_registry();
-        let guard = DisplayRestoreGuard { snapshot };
+        let guard = SnapshotRestorer { snapshot };
         (scraper::collect_inventory(), guard)
     }
 
