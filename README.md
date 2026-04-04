@@ -1,94 +1,81 @@
-# DisplayFlow v0.1.2
+![1000004725](https://github.com/user-attachments/assets/4b1b31bb-8ece-4f0a-8a0e-12ae368e489f)
 
-![Banner](https://github.com/user-attachments/assets/4b1b31bb-8ece-4f0a-8a0e-12ae368e489f)
-
-**DisplayFlow** is a high-performance, Rust-based CLI utility for Windows 10/11 designed to manage complex multi-monitor setups. Unlike standard Windows settings, DisplayFlow allows for granular control over resolutions, positions, refresh rates, and hardware-level monitor settings (DDC/CI) like brightness and contrast—all via the command line or global hotkeys.
+Multi Monitor Tool for Windows.Profile Switcher Command line display manager for Windows 10/11, Rust-based Monitor Config Tool
+# displayflow v0.1.2
 
 [![Download Latest Release](https://img.shields.io/badge/Download-DisplayFlow-blue?style=for-the-badge&logo=windows)](https://github.com/piot5/displayflow_cli/releases/latest/download/displayflow.zip)
 
----
-
-## 🚀 Key Features
-
-* **Snapshot Technology:** Save your current desktop arrangement (positions, Hz, brightness) into a named "Suite" with a single command.
-* **DDC/CI Integration:** Control hardware monitor brightness and contrast directly without touching monitor buttons.
-* **Zero-Delay Switching:** Apply complex layout changes, including primary monitor swaps and rotations, instantly.
-* **Background Daemon:** A lightweight service that sits in the system tray and listens for global hotkeys to switch profiles.
-* **Automation Ready:** Generate desktop shortcuts or batch scripts to trigger specific display environments.
-
----
-
-## 🛠 Quick Start
-
-### 1. Create a Snapshot
-Arrange your monitors manually in Windows Settings, then save the state:
-```powershell
-./displayflow.exe --save Gaming --hotkey
-```
-*The `--hotkey` flag will prompt you to press a key combination (e.g., Alt+Shift+G) to bind to this profile.*
-
-### 2. Scan your Hardware
-To see persistent IDs and current hardware values (DDC):
-```powershell
-./displayflow.exe --scan
-```
-
-### 3. Apply a Saved Suite
-```powershell
-./displayflow.exe --apply-suite Gaming
-```
-
----
-
-## 📝 Task Format (Manual Configuration)
-
-For scripting or manual overrides, use the colon-separated string format:
-
-`ID : Width : Height : X : Y : Primary : Rotation : Freq : Brightness : Contrast : [Animation]`
-
-| Field | Description |
-| :--- | :--- |
-| **ID** | Persistent Monitor ID (e.g., BNQ78A7 or 1). Find via `--scan`. |
-| **Width/Height** | Resolution in pixels (e.g., 1920:1080). Use 0:0 to "Soft-Disable". |
-| **X/Y** | Desktop coordinates. (0:0 is usually the top-left of the primary). |
-| **Primary** | `1` for Yes, `0` for No. |
-| **Rotation** | `0` (0°), `1` (90°), `2` (180°), `3` (270°). |
-| **Freq** | Refresh rate in Hz (e.g., 144). |
-| **Brightness** | DDC/CI Hardware brightness (0-100). |
-| **Contrast** | DDC/CI Hardware contrast (0-100). |
-| **Animation** | Transition direction (`up`, `down`, `left`, `right`). |
-
----
-
-## 💡 Advanced Examples
-
-### 1. Complex Layout with Transitions
-Set up two monitors with different brightness levels and an animated transition.
-```powershell
-./displayflow.exe "1:1920:1080:0:0:1:0:60:60:80:down" "2:1920:1080:0:1080:0:0:60:70:90:up" --save Production
-```
-
-### 2. High-Performance Gaming Mode
-Force the primary display to 144Hz, max brightness, and launch a post-execution command.
-```powershell
-./displayflow.exe "1:2560:1440:0:0:1:0:144:100:80" --save GamingHigh --post "start steam://open/main"
-```
-
----
-
-## ⌨️ Command Reference
-
-| Flag | Effect |
-| :--- | :--- |
-| `--scan` | Lists all monitor IDs, capabilities, and current values. |
-| `--save <Name>` | Saves the current live state (or provided task string) as a Suite. |
-| `--apply-suite <Name>` | Restores a previously saved layout from the registry. |
-| `--hotkey` | Records a global shortcut (e.g., Ctrl+Alt+1) for the suite. |
-| `--daemon` | Starts the background listener for hotkeys and adds a tray icon. |
-| `--linkdesktop` | Creates a `.lnk` shortcut on your desktop to trigger a suite. |
-| `--silent` | Suppresses all console output (ideal for automation/scripts). |
 
 
----
-*Created by the DisplayFlow Team. Licensed under MIT.*
-```
+Quick Start: The "Snapshot" Feature
+
+If you provide --save without a configuration string, the tool reads your current live setup and saves it exactly as it is.
+PowerShell
+
+1. Manually arrange your windows/monitors in Windows Settings
+2. Run this to save the current state as "Gaming"
+displayflow.exe --save Gaming --hotkey
+
+
+Task Format
+
+For manual configuration or scripting, use the following colon-separated string format. Note that the Animation Direction is defined per monitor at the very end of its string.
+
+
+Format:
+ID : Width : Height : X : Y : Primary : Rotation : Freq : Brightness : Contrast : [Animation]
+Field	Description
+ID	Persistent ID (e.g., BNQ78A7 or 1). Find via --scan.
+Primary	1 for primary monitor, 0 for secondary.
+Rotation	0 (Normal), 90 (Portrait), 180 (Inverted), 270 (Portrait Flipped).
+Brightness	Hardware level 0-100 (via DDC/CI).
+Animation	Direction for screen_animation.exe (up, down, left, right, none).
+
+
+Examples
+
+1. Per-Monitor Animation (The "Split" Transition)
+
+If you have a vertical setup, you can trigger animations in opposite directions for a seamless transition effect.
+PowerShell
+
+Top monitor slides 'down', Bottom monitor slides 'up'
+displayflow.exe "1:1920:1080:0:0:1:0:60:60:80:down 2:1920:1080:0:1080:0:0:60:70:90:up" --save Production
+
+
+2. The "Ghost" Monitor (Soft Disable)
+
+Completely disable a monitor by setting its dimensions to zero while keeping its ID in the config.
+PowerShell
+
+displayflow.exe "2:0:0:0:0:0" --save FocusMode
+
+
+3. High-Performance Gaming (144Hz + Full Brightness)
+
+Force the primary display to its max refresh rate and hardware brightness.
+PowerShell
+
+displayflow.exe "1:2560:1440:0:0:1:0:144:100:80" --save HighFPS --post "start steam://open/main"
+
+
+Command Reference
+Flag	Effect
+--scan	Crucial: Lists all IDs and current hardware values.
+--save <Name>	Saves the provided string (or current live state if string is missing).
+--apply-suite <Name>	Instantly restores a saved layout.
+--hotkey	Records a global shortcut (e.g., Alt+Shift+G) for the suite.
+--daemon	Starts the background service for Hotkeys and Tray-Icon.
+--silent	No console output (perfect for .bat or .ps1 scripts).
+
+
+How it works
+
+
+    Zero Admin: Runs entirely in User Mode. No UAC prompts.
+
+    Persistent IDs: Monitors are identified by their hardware signature (synth.rs), so your settings survive a reboot or GPU port swap.
+
+    Smart Animation: If an animation direction is present in the task string, screen_animation.exe is triggered instantly in a background thread to mask the Windows display-driver handshake.
+    
+If this tool saved you some time, consider leaving a ⭐ - it helps others find the project!
