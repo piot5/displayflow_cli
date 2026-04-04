@@ -33,10 +33,9 @@ Brightness	Hardware level 0-100 (via DDC/CI).
 Animation	Direction for screen_animation.exe (up, down, left, right, none).
 
 
-Examples
+Example
 
-[unssdsfgfgd.webm](https://github.com/user-attachments/assets/b1afe52e-30ea-40f6-982a-97c6924e9c5e)
-
+[howto.webm](https://github.com/user-attachments/assets/89cbfb22-4c4f-4b6d-908a-ea8ac9fd781a)
 
 1. Per-Monitor Animation (The "Split" Transition)
 
