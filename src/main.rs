@@ -1,61 +1,44 @@
-mod engine;
+mod display_controller;
 mod scraper;
-mod deployer;
+mod profiles;
 mod daemon;
 mod cli;
-mod bridge;
+mod output;
 
-use engine::DisplayController;
+use display_controller::DisplayLogic;
 use scraper::{set_dpi_awareness, DisplayTask};
-use deployer::DeploymentManager;
+use profiles::ProfileManager;
 use cli::{Cli, parse_task};
-use bridge::OutputManager;
+use output::DisplayOutput;
 use clap::Parser;
 use anyhow::Result;
-use std::io::{self, Write};
 
 fn main() -> Result<()> {
     let args = Cli::parse();
     set_dpi_awareness();
     
-    let engine = DisplayController::new(); 
-    let bridge = OutputManager::new(args.daemon);
+    let display_controller = DisplayLogic::new(); 
+    let output = DisplayOutput::new(args.daemon);
 
     // Scan system and list available suites
     if args.scan {
-        // Warning: DDC/CI queries can cause a handshake (flicker) on certain monitors
-        if !args.silent {
-            println!("WARNING: The scan process may cause monitors to flicker briefly (Handshake).");
-            print!("Continue with scan? [y/N]: ");
-            let _ = io::stdout().flush();
-
-            let mut input = String::new();
-            io::stdin().read_line(&mut input)?;
-            let input = input.trim().to_lowercase();
-
-            if input != "y" && input != "j" {
-                println!("Scan cancelled.");
-                return Ok(());
-            }
-        }
-
-        let (data, _) = engine.inventory();
+        let (data, _) = display_controller.inventory();
         for row in data { 
-            bridge.output("SCAN_RES", &row); 
+            output.output("SCAN_RES", &row); 
         }
-        let suites = engine.list_suites();
-        bridge.output("SUITES_RES", &suites);
+        let suites = display_controller.list_suites();
+        output.output("SUITES_RES", &suites);
         return Ok(());
     }
 
     // Run as background service
     if args.daemon {
-        return daemon::start_daemon_service(engine);
+        return daemon::start_daemon_service(display_controller);
     }
 
     // Apply specific registry configuration
     if let Some(suite_name) = args.apply_suite {
-        engine.apply_registry_suite(&suite_name, args.silent)?;
+        display_controller.apply_registry_suite(&suite_name, args.silent)?;
         std::thread::sleep(std::time::Duration::from_millis(200));
         return Ok(());
     }
@@ -72,22 +55,21 @@ fn main() -> Result<()> {
     // Save current configuration or tasks to a suite
     if let Some(save_name) = args.save {
         if tasks.is_empty() {
-            let (inv, _) = engine.inventory();
+            let (inv, _) = display_controller.inventory();
             tasks = inv.iter().map(|r| r.to_task()).collect();
         }
         
         let mut hk = None;
         if args.hotkey { 
-            hk = DeploymentManager::capture_hotkey(); 
+            hk = ProfileManager::capture_hotkey(); 
         }
 
-        DeploymentManager::create_suite(
+        ProfileManager::create_suite(
             &save_name, &tasks, hk, args.post, args.linkdesktop.is_some(), args.hotkey
         )?;
     } else if !tasks.is_empty() {
-        // Apply display tasks immediately using the existing 'apply' method
-        // Note: passing empty vector for second argument as per previous working state
-        engine.apply(tasks, vec![]);
+        // Apply display tasks immediately
+        display_controller.apply(tasks, vec![]);
         std::thread::sleep(std::time::Duration::from_millis(200));
     }
 

@@ -7,8 +7,8 @@ use anyhow::{Result, Context, anyhow};
 
 const SUITE_REG_PATH: &str = r"Software\DisplayFlow\Suites";
 
-pub struct DeploymentManager;
-impl DeploymentManager {
+pub struct ProfileManager;
+impl ProfileManager {
     pub fn create_suite(
         name: &str, 
         tasks: &[DisplayTask], 

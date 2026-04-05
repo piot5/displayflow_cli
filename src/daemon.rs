@@ -8,17 +8,17 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{RegisterHotKey, MOD_CONTROL, M
 use windows::Win32::UI::Shell::*;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, POINT};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use crate::engine::DisplayController;
+use crate::display_controller::DisplayLogic;
 
 const WM_TRAY_ICON: u32 = WM_USER + 1;
 const TRAY_ICON_ID: u32 = 1;
 const IDM_EXIT: usize = 1001;
 
-// Global engine reference for the window procedure callback
-static mut GLOBAL_ENGINE: Option<DisplayController> = None;
+// Global display_controller reference for the window procedure callback
+static mut GLOBAL_ENGINE: Option<DisplayLogic> = None;
 
-pub fn start_daemon_service(engine: DisplayController) -> Result<()> {
-    unsafe { GLOBAL_ENGINE = Some(engine); }
+pub fn start_daemon_service(display_controller: DisplayLogic) -> Result<()> {
+    unsafe { GLOBAL_ENGINE = Some(display_controller); }
 
 // Ensure clean exit on Ctrl+C
     ctrlc::set_handler(move || { process::exit(0); }).expect("Error setting Ctrl-C handler");
@@ -134,8 +134,8 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
             WM_HOTKEY => {
                 let idx = wparam.0;
                 thread::spawn(move || {
-                    if let Some(ref engine) = GLOBAL_ENGINE {
-                        let _ = apply_registry_suite_by_index(idx as usize, engine);
+                    if let Some(ref display_controller) = GLOBAL_ENGINE {
+                        let _ = apply_registry_suite_by_index(idx as usize, display_controller);
                     }
                 });
                 LRESULT(0)
@@ -160,7 +160,7 @@ extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
     }
 }
 
-fn apply_registry_suite_by_index(idx: usize, engine: &DisplayController) -> Result<()> {
+fn apply_registry_suite_by_index(idx: usize, display_controller: &DisplayLogic) -> Result<()> {
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let key = hkcu.open_subkey(r"Software\DisplayFlow\Suites")?;
     let mut names = Vec::new();
@@ -168,7 +168,7 @@ fn apply_registry_suite_by_index(idx: usize, engine: &DisplayController) -> Resu
         names.push(name);
     }
     if let Some(name) = names.get(idx) {
-        engine.apply_registry_suite(name, true)?;
+        display_controller.apply_registry_suite(name, true)?;
     }
     Ok(())
 }
