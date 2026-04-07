@@ -8,13 +8,12 @@
  * 🔍 **Hardware Detection:** Read EDID data and metadata even from inactive or standby monitors.
 ### Quick Start: The "Snapshot" Feature
 If you provide --save without a configuration string, the tool reads your current live setup and saves it exactly as it is.
-**PowerShell**
+
  1. Manually arrange your windows/monitors in Windows Settings.
  2. Run this to save the current state as "Gaming":
     
-   ```powershell
+   ```
    displayflow.exe --save Gaming --hotkey
-   
    ```
 
 ### Task Format
@@ -34,21 +33,21 @@ If you have a vertical setup, you can trigger animations in opposite directions 
 **PowerShell**
 *Top monitor slides 'down', Bottom monitor slides 'up':*
 
-```powershell
-displayflow.exe "1:1920:1080:0:0:1:0:60:60:80:down 2:1920:1080:0:1080:0:0:60:70:90:up" --save Production
+```
+displayflow.exe "1:1920:1080:0:0:1:0:60:60:80:down 2:1920:1080:0:1080:0:0:60:70:90:up" --save Productivity
 ```
 
 #### 2. The "Ghost" Monitor (Soft Disable)
 Completely disable a monitor by setting its dimensions to zero while keeping its ID in the config.
 
-```powershell
+```
 displayflow.exe "2:0:0:0:0:0" --save FocusMode
 ```
 
 #### 3. High-Performance Gaming (144Hz + Full Brightness)
 Force the primary display to its max refresh rate and hardware brightness.
 
-```powershell
+```
 displayflow.exe "1:2560:1440:0:0:1:0:144:100:80" --save HighFPS --post "start steam://open/main"
 ```
 
