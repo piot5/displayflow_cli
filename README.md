@@ -11,10 +11,12 @@ If you provide --save without a configuration string, the tool reads your curren
 **PowerShell**
  1. Manually arrange your windows/monitors in Windows Settings.
  2. Run this to save the current state as "Gaming":
+    
    ```powershell
    displayflow.exe --save Gaming --hotkey
    
    ```
+
 ### Task Format
 For manual configuration or scripting, use the following colon-separated string format. Note that the **Animation Direction** is defined per monitor at the very end of its string.
 **Format:**
@@ -31,24 +33,25 @@ ID : Width : Height : X : Y : Primary : Rotation : Freq : Brightness : Contrast 
 If you have a vertical setup, you can trigger animations in opposite directions for a seamless transition effect.
 **PowerShell**
 *Top monitor slides 'down', Bottom monitor slides 'up':*
+
 ```powershell
 displayflow.exe "1:1920:1080:0:0:1:0:60:60:80:down 2:1920:1080:0:1080:0:0:60:70:90:up" --save Production
-
 ```
+
 #### 2. The "Ghost" Monitor (Soft Disable)
 Completely disable a monitor by setting its dimensions to zero while keeping its ID in the config.
-**PowerShell**
+
 ```powershell
 displayflow.exe "2:0:0:0:0:0" --save FocusMode
-
 ```
+
 #### 3. High-Performance Gaming (144Hz + Full Brightness)
 Force the primary display to its max refresh rate and hardware brightness.
-**PowerShell**
+
 ```powershell
 displayflow.exe "1:2560:1440:0:0:1:0:144:100:80" --save HighFPS --post "start steam://open/main"
-
 ```
+
 ### Command Reference
 | Flag | Effect |
 |---|---|
