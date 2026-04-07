@@ -1,1 +1,5 @@
-
+theme: jekyll-theme-modernist
+title: Displayflow | Universal Rust Display Controller
+description: CLI tool to control monitor settings including ddc brightness and contrast on Windows.
+google_analytics: 
+show_downloads: true
