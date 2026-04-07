@@ -1,8 +1,13 @@
 
 [live_displayflow.webm](https://github.com/user-attachments/assets/2143cdee-d8e2-4ba0-a182-f28fd11b05cc)
 
-Multi Monitor Tool for Windows.Profile Switcher Command line display manager for Windows 10/11, Rust-based Monitor Config Tool
-# displayflow
+# Displayflow
+## Key Features
+* 🚀 **Fast:** Written in Rust for maximum performance and memory safety.
+* 🛠️ **DDC/CI Control:** Adjust brightness, contrast, and VCP features without OSD menus.
+* 📟 **CLI First:** Optimized for terminal usage, automation, and custom keybindings.
+* 🔍 **Hardware Detection:** Read EDID data and metadata even from inactive or standby monitors.
+
 
 [![Download Latest Release](https://img.shields.io/badge/Download-DisplayFlow-blue?style=for-the-badge&logo=windows)](https://github.com/piot5/displayflow_cli/releases/latest/download/displayflow.zip)
 
