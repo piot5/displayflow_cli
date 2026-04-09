@@ -1,5 +1,5 @@
 # Displayflow
-[日本語](./README.ja.md)
+🇯🇵[日本語](./README.ja.md)
 
 [live_displayflow.webm](https://github.com/user-attachments/assets/2143cdee-d8e2-4ba0-a182-f28fd11b05cc)
 
