@@ -9,6 +9,14 @@
  * 🛠️ **DDC/CI Control:** Adjust brightness, contrast, and VCP features without OSD menus.
  * 📟 **CLI First:** Optimized for terminal usage, automation, and custom keybindings.
  * 🔍 **Hardware Detection:** Read EDID data and metadata even from inactive or standby monitors.
+
+## See it in Action 📺
+
+[![DisplayFlow Showcase](https://img.youtube.com/vi/_ch6X-_A2Ms/maxresdefault.jpg)](https://youtu.be/_ch6X-_A2Ms)
+
+*Click the image above to see how DisplayFlow automates monitor switching and launches Playnite.*
+
+
 ### Quick Start: The "Snapshot" Feature
 If you provide --save without a configuration string, the tool reads your current live setup and saves it exactly as it is.
 
