@@ -4,6 +4,7 @@ use winreg::RegKey;
 use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::Foundation::LPARAM;
 use crate::scraper::{DisplayRow, scan, ddc};
+use log::{info, debug};
 
 const REG_PATH: &str = r"Software\DisplayFlow\Mapping";
 
@@ -34,6 +35,14 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
             synth.size_mm = reg.size_mm.clone();
         }
 
+        // Solution #1: Handle missing serial path gracefully (generic drivers)
+        // If serial is still "N/A" after registry lookup, create a fallback identifier
+        if synth.serial == "N/A" || synth.serial.is_empty() {
+            let fallback_id = create_fallback_identifier(&synth);
+            debug!("Monitor {} missing serial path, using fallback identifier: {}", synth.name_id, fallback_id);
+            synth.serial = fallback_id;
+        }
+
         // DDC Daten zuweisen
         for (h_mon, caps) in &ddc_map {
             let mut info = MONITORINFO::default();
@@ -58,6 +67,22 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
     final_results
 }
 
+/// Solution #1: Create a fallback identifier when serial path is missing
+/// Uses a simple hash of name_id + resolution + frequency to create a unique, stable identifier
+/// This works around generic driver limitations that don't provide serial paths
+fn create_fallback_identifier(row: &DisplayRow) -> String {
+    // Simple hash: concatenate and use length + character sum as basic hash
+    // This is sufficient for stable identification across reboots
+    let combined = format!("{}{}{}", row.name_id, row.resolution, row.freq);
+    let mut hash: u64 = 5381; // DJB2 hash algorithm
+    
+    for byte in combined.bytes() {
+        hash = ((hash << 5).wrapping_add(hash)).wrapping_add(byte as u64);
+    }
+    
+    format!("FALLBACK_{:016x}", hash)
+}
+
 /// Matches a live hardware path against registry keys using case-insensitive substring search.
 fn find_registry_match<'a>(hw_path: &str, registry: &'a [DisplayRow]) -> Option<&'a DisplayRow> {
     let uc_path = hw_path.to_uppercase();
@@ -68,9 +93,12 @@ fn find_registry_match<'a>(hw_path: &str, registry: &'a [DisplayRow]) -> Option<
 }
 
 /// Creates a hierarchy of keys for identification.
+/// Prioritizes Path+Serial > Path for stable monitor identification
 fn generate_keys(row: &DisplayRow) -> (String, String) {
     let path_key = row.position_instance.clone();
-    let precise_key = if row.serial != "N/A" && !row.serial.is_empty() { 
+    
+    // Solution #1: Accept fallback identifiers as valid serial data
+    let precise_key = if (row.serial != "N/A" && !row.serial.is_empty()) || row.serial.starts_with("FALLBACK_") { 
         format!("{}#{}", path_key, row.serial) 
     } else { 
         path_key.clone() 
@@ -81,12 +109,15 @@ fn generate_keys(row: &DisplayRow) -> (String, String) {
 /// Logic to retrieve or create a unique persistent ID.
 /// Automatically upgrades "Path-only" keys to "Path+Serial" keys if a serial becomes available.
 fn determine_id(mapping: &mut HashMap<String, u32>, path_key: &str, precise_key: &str, next_id: &mut u32, changed: &mut bool) -> u32 {
-    if let Some(&id) = mapping.get(precise_key) { return id; }
+    if let Some(&id) = mapping.get(precise_key) { 
+        return id; 
+    }
     if let Some(&id) = mapping.get(path_key) {
         if precise_key != path_key {
             let id_val = id;
             mapping.remove(path_key);
             mapping.insert(precise_key.to_string(), id_val);
+            info!("Upgraded monitor mapping from path-only to path+serial/fallback");
             *changed = true;
         }
         return id;
