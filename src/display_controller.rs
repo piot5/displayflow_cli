@@ -10,7 +10,22 @@ use winreg::RegKey;
 use winreg::enums::HKEY_CURRENT_USER;
 use crate::scraper::{self, DisplayTask, DisplayRow, scan::{GdiDevice, GdiDevMode}, ddc};
 use crate::cli::parse_task;
+use log::{info, warn, error, debug};
 
+/// GDI Error Code Helper
+fn gdi_error_to_string(code: i32) -> String {
+    match code {
+        0 => "DISP_CHANGE_SUCCESSFUL: Configuration applied successfully".to_string(),
+        1 => "DISP_CHANGE_RESTART: Configuration applied but system restart required".to_string(),
+        -1 => "DISP_CHANGE_BADDUALVIEW: Bad dual-view configuration detected. Verify primary is at (0,0)".to_string(),
+        -2 => "DISP_CHANGE_BADFLAGS: Invalid flags specified".to_string(),
+        -3 => "DISP_CHANGE_BADPARAM: Invalid parameter in DEVMODE".to_string(),
+        -4 => "DISP_CHANGE_FAILED: Display driver failed to apply configuration".to_string(),
+        -5 => "DISP_CHANGE_BADMODE: Invalid mode or resolution".to_string(),
+        -6 => "DISP_CHANGE_NOTUPDATED: Registry updated but display not changed (driver issue)".to_string(),
+        _ => format!("UNKNOWN_ERROR (code: {})", code),
+    }
+}
 
 /// restores a Snapshot of the Display Config, 
 /// but also restores if the process crashes or an apply fails during scan.
@@ -34,11 +49,19 @@ impl Drop for DisplayRestorer {
 	    // Force global hardware update for all staged changes.
             unsafe {
 		// CDS_NORESET: Just update registry for now. We'll flush the hardware change once at the end.
-                let _ = ChangeDisplaySettingsExW(pcw_name, Some(&reset_dm), None, CDS_UPDATEREGISTRY | CDS_NORESET, None);
+                let res = ChangeDisplaySettingsExW(pcw_name, Some(&reset_dm), None, CDS_UPDATEREGISTRY | CDS_NORESET, None);
+                if res != 0 && res != 1 {
+                    warn!("Restorer: Failed to stage reset for {:?}: {}", String::from_utf16_lossy(name_u16), gdi_error_to_string(res));
+                }
             }
         }
         // Commit der Wiederherstellung
-        unsafe { let _ = ChangeDisplaySettingsExW(PCWSTR::null(), None, None, CDS_TYPE(0), None); }
+        unsafe { 
+            let res = ChangeDisplaySettingsExW(PCWSTR::null(), None, None, CDS_TYPE(0), None);
+            if res != 0 && res != 1 {
+                error!("Restorer: Failed to commit registry changes: {}", gdi_error_to_string(res));
+            }
+        }
     }
 }
 
@@ -151,7 +174,10 @@ impl DisplayLogic {
                 }
             }
         }
-        if staged_count > 0 { self.commit_registry(); }
+        if staged_count > 0 { 
+            info!("Staged {} display configurations, committing to hardware...", staged_count);
+            self.commit_registry(); 
+        }
     }
 /// Resolves GDI device names (\\.\DISPLAY1) to HMONITOR handles for DDC/CI access.
     fn find_hmonitor_by_name(&self, target_name: &str) -> Option<HMONITOR> {
@@ -264,7 +290,13 @@ impl DisplayLogic {
     fn stage_registry_setting(&self, name: PCWSTR, dm: &DEVMODEW, flags: u32) -> bool {
         unsafe {
             let res = ChangeDisplaySettingsExW(name, Some(dm), None, CDS_UPDATEREGISTRY | CDS_NORESET | CDS_TYPE(flags), None);
-            res == DISP_CHANGE_SUCCESSFUL || res == DISP_CHANGE_RESTART
+            if res != 0 && res != 1 {
+                let device_name = String::from_utf16_lossy(std::slice::from_raw_parts(name.as_ptr(), 32))
+                    .trim_matches(char::from(0))
+                    .to_string();
+                warn!("stage_registry_setting({}, res={}): {}", device_name, res, gdi_error_to_string(res));
+            }
+            res == 0 || res == 1
         }
     }
 
@@ -278,67 +310,92 @@ impl DisplayLogic {
 
     fn commit_registry(&self) {
 // Calling with NULL name triggers a hardware flush for all pending registry changes. 
-        unsafe { let _ = ChangeDisplaySettingsExW(PCWSTR::null(), None, None, CDS_TYPE(0), None); } 
+        unsafe { 
+            let res = ChangeDisplaySettingsExW(PCWSTR::null(), None, None, CDS_TYPE(0), None);
+            if res != 0 && res != 1 {
+                error!("commit_registry failed: {}", gdi_error_to_string(res));
+                debug!("This typically means Windows GDI rejected the entire configuration. Check:");
+                debug!("  1. Is the primary monitor at position (0,0)?");
+                debug!("  2. Do any two monitors overlap in position?");
+                debug!("  3. Are all resolutions/frequencies valid for the hardware?");
+                debug!("  4. Are you using generic/outdated GPU drivers?");
+            } else if res == 1 {
+                info!("Display configuration applied successfully (restart may be required)");
+            }
+        } 
     }
 
-   fn stage_config(&self, name: &str, task: &DisplayTask) -> bool {
-    let name_u16: Vec<u16> = name.encode_utf16().chain(iter::once(0)).collect();
-    unsafe {
-        let mut dm = GdiDevMode::new();
-        if EnumDisplaySettingsW(PCWSTR(name_u16.as_ptr()), ENUM_CURRENT_SETTINGS, &mut dm.0).as_bool() {
-            // 1. Determine rotation
-            let rotation = match task.direction.as_deref() {
-                Some("90") | Some("right") => DMDO_90, 
-                Some("180") | Some("inverted") => DMDO_180, 
-                Some("270") | Some("left") => DMDO_270, 
-                _ => DMDO_DEFAULT
-            };
+    fn stage_config(&self, name: &str, task: &DisplayTask) -> bool {
+        let name_u16: Vec<u16> = name.encode_utf16().chain(iter::once(0)).collect();
+        unsafe {
+            let mut dm = GdiDevMode::new();
+            if EnumDisplaySettingsW(PCWSTR(name_u16.as_ptr()), ENUM_CURRENT_SETTINGS, &mut dm.0).as_bool() {
+                // 1. Determine rotation
+                let rotation = match task.direction.as_deref() {
+                    Some("90") | Some("right") => DMDO_90, 
+                    Some("180") | Some("inverted") => DMDO_180, 
+                    Some("270") | Some("left") => DMDO_270, 
+                    _ => DMDO_DEFAULT
+                };
 
-            // 2. Adjust dimensions based on rotation
-            let (w, h) = if rotation == DMDO_90 || rotation == DMDO_270 { 
-                (task.height, task.width) 
+                // 2. Adjust dimensions based on rotation
+                let (w, h) = if rotation == DMDO_90 || rotation == DMDO_270 { 
+                    (task.height, task.width) 
+                } else { 
+                    (task.width, task.height) 
+                };
+
+                dm.0.dmPelsWidth = w as u32;
+                dm.0.dmPelsHeight = h as u32;
+                
+                // 3. Mark relevant fields
+                dm.0.dmFields |= DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
+                dm.0.Anonymous1.Anonymous2.dmPosition.x = task.x;
+                dm.0.Anonymous1.Anonymous2.dmPosition.y = task.y;
+                dm.0.Anonymous1.Anonymous2.dmDisplayOrientation = rotation;
+
+                // 4. Optional frequency setting
+                if task.freq > 0 {
+                    dm.0.dmDisplayFrequency = task.freq;
+                    dm.0.dmFields |= DM_DISPLAYFREQUENCY;
+                }
+
+                // 5. Flags for staging
+                let mut flags = CDS_UPDATEREGISTRY | CDS_NORESET;
+                if task.is_primary { flags |= CDS_SET_PRIMARY; }
+
+                // 6. Disable monitor if resolution is 0/0
+                // Note: We must mark dmFields to ensure Windows doesn't ignore the 0 values.
+                if task.width == 0 && task.height == 0 {
+                    dm.0.dmPelsWidth = 0;
+                    dm.0.dmPelsHeight = 0;
+                    dm.0.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
+                    debug!("Staging monitor {} for DISABLE (0x0 resolution)", name);
+                }
+
+                // 7. Write to registry without reset
+                let res = ChangeDisplaySettingsExW(
+                    PCWSTR(name_u16.as_ptr()), 
+                    Some(&dm.0), 
+                    None, 
+                    flags, 
+                    None
+                );
+
+                if res == 0 || res == 1 {
+                    info!("Staged display {}: {}x{}@{}Hz at ({},{}) primary={}", 
+                        name, w, h, task.freq, task.x, task.y, task.is_primary);
+                    true
+                } else {
+                    error!("Failed to stage config for {}: {}", name, gdi_error_to_string(res as i32));
+                    debug!("Task details: width={}, height={}, freq={}, x={}, y={}, primary={}", 
+                        task.width, task.height, task.freq, task.x, task.y, task.is_primary);
+                    false
+                }
             } else { 
-                (task.width, task.height) 
-            };
-
-            dm.0.dmPelsWidth = w as u32;
-            dm.0.dmPelsHeight = h as u32;
-            
-            // 3. Mark relevant fields
-            dm.0.dmFields |= DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION | DM_DISPLAYORIENTATION;
-            dm.0.Anonymous1.Anonymous2.dmPosition.x = task.x;
-            dm.0.Anonymous1.Anonymous2.dmPosition.y = task.y;
-            dm.0.Anonymous1.Anonymous2.dmDisplayOrientation = rotation;
-
-            // 4. Optional frequency setting
-            if task.freq > 0 {
-                dm.0.dmDisplayFrequency = task.freq;
-                dm.0.dmFields |= DM_DISPLAYFREQUENCY;
+                error!("Failed to read current display settings for {}", name);
+                false 
             }
-
-            // 5. Flags for staging
-            let mut flags = CDS_UPDATEREGISTRY | CDS_NORESET;
-            if task.is_primary { flags |= CDS_SET_PRIMARY; }
-
-            // 6. Disable monitor if resolution is 0/0
-            // Note: We must mark dmFields to ensure Windows doesn't ignore the 0 values.
-            if task.width == 0 && task.height == 0 {
-                dm.0.dmPelsWidth = 0;
-                dm.0.dmPelsHeight = 0;
-                dm.0.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_POSITION;
-            }
-
-            // 7. Write to registry without reset
-            ChangeDisplaySettingsExW(
-                PCWSTR(name_u16.as_ptr()), 
-                Some(&dm.0), 
-                None, 
-                flags, 
-                None
-            ) == DISP_CHANGE_SUCCESSFUL
-        } else { 
-            false 
         }
     }
-}
 }
