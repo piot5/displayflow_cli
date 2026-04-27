@@ -150,35 +150,80 @@ impl DisplayLogic {
         sorted_tasks.sort_by_key(|t| !t.is_primary);
         let mut staged_count = 0;
 
+        // Solution #3: Phase 1 - Disable monitors that should be off BEFORE staging new configs
+        // This prevents Windows GDI from rejecting the entire configuration if it detects
+        // an invalid state (e.g., primary monitor missing or position conflicts)
+        debug!("Phase 1: Disabling monitors that should be inactive...");
         for task in &sorted_tasks {
-            if let Some(row) = inv.iter().find(|r| self.match_display(r, &task.query)) {
-                let was_inactive = snapshot.iter()
-                    .find(|(name, _, _)| String::from_utf16_lossy(name).trim_matches(char::from(0)) == row.name_id)
-                    .map(|(_, active, _)| !*active)
-                    .unwrap_or(false);
-
-                if self.stage_config(&row.name_id, task) {
-                    staged_count += 1;
-
-		 // Fire-and-forget hardware DDC updates.
-                    if task.brightness.is_some() || task.contrast.is_some() {
-                        if let Some(h_mon) = self.find_hmonitor_by_name(&row.name_id) {
-                            let _ = self.ddc_tx.send(DdcCommand::Apply {
-                                h_monitor: h_mon.0,
-                                brightness: task.brightness,
-                                contrast: task.contrast,
-                                delay: was_inactive,
-                            });
-                        }
+            if task.width == 0 && task.height == 0 {
+                // This monitor should be disabled
+                if let Some(row) = inv.iter().find(|r| self.match_display(r, &task.query)) {
+                    let disable_task = DisplayTask {
+                        query: task.query.clone(),
+                        width: 0,
+                        height: 0,
+                        freq: 0,
+                        x: 0,
+                        y: 0,
+                        is_primary: false,
+                        direction: None,
+                        brightness: None,
+                        contrast: None,
+                        animation: None,
+                    };
+                    if self.stage_config(&row.name_id, &disable_task) {
+                        debug!("Staged disable for {}", row.name_id);
                     }
+                    // Small delay between operations to let GDI process
+                    thread::sleep(Duration::from_millis(100));
                 }
             }
         }
+        
+        // Flush disable operations to hardware
+        self.commit_registry();
+        thread::sleep(Duration::from_millis(200));
+
+        // Solution #3: Phase 2 - Now configure monitors that should be active
+        debug!("Phase 2: Staging active monitor configurations...");
+        for task in &sorted_tasks {
+            if task.width > 0 && task.height > 0 {
+                // This monitor should be active
+                if let Some(row) = inv.iter().find(|r| self.match_display(r, &task.query)) {
+                    let was_inactive = snapshot.iter()
+                        .find(|(name, _, _)| String::from_utf16_lossy(name).trim_matches(char::from(0)) == row.name_id)
+                        .map(|(_, active, _)| !*active)
+                        .unwrap_or(false);
+
+                    if self.stage_config(&row.name_id, task) {
+                        staged_count += 1;
+
+		         // Fire-and-forget hardware DDC updates.
+                        if task.brightness.is_some() || task.contrast.is_some() {
+                            if let Some(h_mon) = self.find_hmonitor_by_name(&row.name_id) {
+                                let _ = self.ddc_tx.send(DdcCommand::Apply {
+                                    h_monitor: h_mon.0,
+                                    brightness: task.brightness,
+                                    contrast: task.contrast,
+                                    delay: was_inactive,
+                                });
+                            }
+                        }
+                    }
+                    // Small delay between operations
+                    thread::sleep(Duration::from_millis(100));
+                }
+            }
+        }
+        
+        // Solution #3: Phase 3 - Commit all changes at once
         if staged_count > 0 { 
-            info!("Staged {} display configurations, committing to hardware...", staged_count);
+            info!("Phase 3: Committing {} display configurations to hardware...", staged_count);
             self.commit_registry(); 
+            thread::sleep(Duration::from_millis(300));
         }
     }
+    
 /// Resolves GDI device names (\\.\DISPLAY1) to HMONITOR handles for DDC/CI access.
     fn find_hmonitor_by_name(&self, target_name: &str) -> Option<HMONITOR> {
         struct EnumCtx { target: String, result: Option<HMONITOR> }
