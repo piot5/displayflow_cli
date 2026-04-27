@@ -68,22 +68,18 @@ pub fn collect_inventory() -> Vec<DisplayRow> {
 }
 
 /// Solution #1: Create a fallback identifier when serial path is missing
-/// Hashes name_id + resolution + frequency to create a unique, stable identifier
+/// Uses a simple hash of name_id + resolution + frequency to create a unique, stable identifier
 /// This works around generic driver limitations that don't provide serial paths
 fn create_fallback_identifier(row: &DisplayRow) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    let mut hasher = DefaultHasher::new();
+    // Simple hash: concatenate and use length + character sum as basic hash
+    // This is sufficient for stable identification across reboots
+    let combined = format!("{}{}{}", row.name_id, row.resolution, row.freq);
+    let mut hash: u64 = 5381; // DJB2 hash algorithm
     
-    // Combine multiple attributes for uniqueness
-    row.name_id.hash(&mut hasher);
-    row.resolution.hash(&mut hasher);
-    row.freq.hash(&mut hasher);
+    for byte in combined.bytes() {
+        hash = ((hash << 5).wrapping_add(hash)).wrapping_add(byte as u64);
+    }
     
-    let hash = hasher.finish();
-    
-    // Format as recognizable identifier: "FALLBACK_<hex_hash>"
     format!("FALLBACK_{:016x}", hash)
 }
 
