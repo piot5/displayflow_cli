@@ -1,17 +1,22 @@
+# Build artifacts
 Cargo.lock
 /target/
 /release/
+
+# Environment & config files
 .env
 config.toml
+*.json.bak
 
-.env
-
-
+# Scripts
 **/*.bat
 **/*.vbs
 **/*.rs.bk
 
-
+# IDEs
 .vscode/
 .idea/
 *.swp
+
+# Local suite configs (generated at runtime)
+suites/*.json

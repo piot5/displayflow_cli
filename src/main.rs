@@ -1,13 +1,16 @@
 mod display_controller;
 mod scraper;
-mod profiles;
+mod config;
+mod display_snapshot;
+mod ddc_control;
+mod display_apply;
 mod daemon;
 mod cli;
 mod output;
 
 use display_controller::DisplayLogic;
-use scraper::{set_dpi_awareness, DisplayTask};
-use profiles::ProfileManager;
+use scraper::set_dpi_awareness;
+use config::ProfileManager;
 use cli::{Cli, parse_task};
 use output::DisplayOutput;
 use clap::Parser;
@@ -36,14 +39,14 @@ fn main() -> Result<()> {
         return daemon::start_daemon_service(display_controller);
     }
 
-    // Apply specific registry configuration
+    // Apply specific configuration suite
     if let Some(suite_name) = args.apply_suite {
         display_controller.apply_registry_suite(&suite_name, args.silent)?;
         std::thread::sleep(std::time::Duration::from_millis(200));
         return Ok(());
     }
 
-    let mut tasks: Vec<DisplayTask> = args.tasks.iter().filter_map(|s| parse_task(s)).collect();
+    let mut tasks: Vec<crate::scraper::DisplayTask> = args.tasks.iter().filter_map(|s| parse_task(s)).collect();
 
     // Set global animation for tasks
     if let Some(ref ani) = args.animation {
