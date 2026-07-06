@@ -30,8 +30,11 @@ clap = { version = "4.0", features = ["derive"] }
 # displaymanager crates from crates.io
 # Using published crates instead of internal unsafe bindings
 df_ddc = "0.1.1"
-df_displmgr = "0.1.1"
+df_displmgr = { version = "0.1.1", features = ["ctrl_center"] }
 df_displmgr_info = "0.1.1"
+
+# Async runtime used to call df_displmgr async APIs synchronously when needed
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 [profile.release]
 opt-level = "z"
