@@ -1,73 +1,45 @@
-use windows::Win32::Graphics::Gdi::*;
-use windows::Win32::Devices::Display::*;
-use windows::Win32::Foundation::{RECT, BOOL, LPARAM};
+use df_ddc::{list_monitors, DisplayDevice};
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct DdcCaps {
     pub brightness: u32,
     pub contrast: u32,
     pub input_source: u32,
 }
 
-pub fn set_monitor_vcp(h_monitor: HMONITOR, brightness: Option<u32>, contrast: Option<u32>) {
-    unsafe {
-        let mut count = 0;
-        if GetNumberOfPhysicalMonitorsFromHMONITOR(h_monitor, &mut count).is_err() {
-            return;
+/// List DDC-capable monitors and their capabilities using the df_ddc crate.
+/// Returns a vector of (device_info, DdcCaps).
+pub fn list_ddc_caps() -> Vec<(String, DdcCaps)> {
+    let mut out = Vec::new();
+    for dev in list_monitors() {
+        if let Ok(caps) = dev.inner.get_capabilities() {
+            out.push((
+                dev.info.clone(),
+                DdcCaps {
+                    brightness: caps.brightness,
+                    contrast: caps.contrast,
+                    input_source: caps.input_source,
+                },
+            ));
         }
+    }
+    out
+}
 
-        let mut phys_monitors = vec![PHYSICAL_MONITOR::default(); count as usize];
-        if GetPhysicalMonitorsFromHMONITOR(h_monitor, &mut phys_monitors).is_err() {
-            return;
-        }
-
-        for mon in &phys_monitors {
+/// Set monitor brightness/contrast by matching a device info string.
+/// This is a best-effort helper for the CLI; it will try to find the first
+/// matching device and apply the settings via the df_ddc trait.
+pub fn set_monitor_vcp_by_info(target_info: &str, brightness: Option<u32>, contrast: Option<u32>) {
+    for dev in list_monitors() {
+        if dev.info.contains(target_info) || target_info.contains(&dev.info) {
             if let Some(b) = brightness {
-                let _ = SetMonitorBrightness(mon.hPhysicalMonitor, b);
+                let _ = dev.inner.set_brightness(b);
             }
             if let Some(c) = contrast {
-                let _ = SetMonitorContrast(mon.hPhysicalMonitor, c);
+                let _ = dev.inner.set_vcp_feature(0x12, c);
             }
+            break;
         }
-        let _ = DestroyPhysicalMonitors(&phys_monitors);
     }
-}
-
-pub fn get_monitor_caps(h_monitor: HMONITOR) -> Option<DdcCaps> {
-    unsafe {
-        let mut count = 0;
-        if GetNumberOfPhysicalMonitorsFromHMONITOR(h_monitor, &mut count).is_err() { return None; }
-        
-        let mut phys_monitors = vec![PHYSICAL_MONITOR::default(); count as usize];
-        if GetPhysicalMonitorsFromHMONITOR(h_monitor, &mut phys_monitors).is_err() { return None; }
-
-        let mut caps = DdcCaps::default();
-        if let Some(mon) = phys_monitors.first() {
-            let (mut min, mut cur, mut max) = (0, 0, 0);
-            
-            if GetMonitorBrightness(mon.hPhysicalMonitor, &mut min, &mut cur, &mut max) != 0 {
-                caps.brightness = cur;
-            }
-            if GetMonitorContrast(mon.hPhysicalMonitor, &mut min, &mut cur, &mut max) != 0 {
-                caps.contrast = cur;
-            }
-            
-            let mut vcp_type = MC_VCP_CODE_TYPE(0);
-            let mut vcp_cur = 0;
-            let mut vcp_max = 0;
-            if GetVCPFeatureAndVCPFeatureReply(mon.hPhysicalMonitor, 0x60, Some(&mut vcp_type), &mut vcp_cur, Some(&mut vcp_max)) != 0 {
-                caps.input_source = vcp_cur;
-            }
-        }
-        let _ = DestroyPhysicalMonitors(&phys_monitors);
-        Some(caps)
-    }
-}
-
-pub extern "system" fn monitor_enum_proc(h_monitor: HMONITOR, _: HDC, _: *mut RECT, lparam: LPARAM) -> BOOL {
-    let monitors = unsafe { &mut *(lparam.0 as *mut Vec<(HMONITOR, DdcCaps)>) };
-    if let Some(caps) = get_monitor_caps(h_monitor) {
-        monitors.push((h_monitor, caps));
-    }
-    BOOL(1)
 }

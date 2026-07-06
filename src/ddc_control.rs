@@ -1,97 +1,62 @@
-//! DDC/CI Hardware Control
-//! 
-//! Controls monitor hardware settings (brightness, contrast) via I2C
-
+use df_ddc::{list_monitors, DdcControl as DdcControlTrait};
 use std::sync::mpsc::{self, Sender};
 use std::thread;
 use std::time::Duration;
-use crate::scraper::ddc;
-use windows::Win32::Graphics::Gdi::HMONITOR;
-// (removed unused imports)
 
 /// DDC Command enum
 pub enum DdcCommand {
-    Apply {
-        h_monitor: isize,
-        brightness: Option<u32>,
-        contrast: Option<u32>,
-        delay: bool,
-    },
+    ApplyByIndex { idx: usize, brightness: Option<u32>, contrast: Option<u32>, delay: bool },
 }
 
-/// DDC Control channel
+/// DDC Control channel (wrapper around df_ddc backends).
+/// This spawns a background thread which owns the concrete backend objects
+/// and performs potentially blocking operations off the main thread.
 pub struct DdcControl {
     pub tx: Sender<DdcCommand>,
+    /// Human-readable device infos (index-aligned with the backends in the thread)
+    pub devices: Vec<String>,
 }
 
 impl DdcControl {
-    /// Create new DDC control channel
+    /// Create new DDC control channel and spawn worker thread.
     pub fn new() -> Self {
+        let devices_list = list_monitors();
+        let device_infos: Vec<String> = devices_list.iter().map(|d| d.info.clone()).collect();
+
+        // Move the boxed backends into the worker thread
+        let mut backends: Vec<Box<dyn DdcControlTrait>> = devices_list.into_iter().map(|d| d.inner).collect();
+
         let (tx, rx) = mpsc::channel::<DdcCommand>();
-        // DDC/CI (I2C) operations are notoriously slow and can block.
-        // offload to a background thread to prevent UI/CLI lag.
         thread::spawn(move || {
             while let Ok(cmd) = rx.recv() {
                 match cmd {
-                    DdcCommand::Apply { h_monitor, brightness, contrast, delay } => {
+                    DdcCommand::ApplyByIndex { idx, brightness, contrast, delay } => {
                         if delay {
-                            // If a monitor just woke up, the scaler/firmware often 
-                            // needs a moment before it starts responding to VCP
-                            // Wait for hardware to be ready
                             thread::sleep(Duration::from_millis(800));
                         }
-                        let hmon = HMONITOR(h_monitor);
-                        ddc::set_monitor_vcp(hmon, brightness, contrast);
+                        if let Some(backend) = backends.get_mut(idx) {
+                            if let Some(b) = brightness {
+                                let _ = backend.set_brightness(b);
+                            }
+                            if let Some(c) = contrast {
+                                let _ = backend.set_vcp_feature(0x12, c);
+                            }
+                        }
                     }
                 }
             }
         });
-        Self { tx }
+
+        Self { tx, devices: device_infos }
     }
 
-    /// Find HMONITOR handle by device name
-    pub fn find_hmonitor_by_name(target_name: &str) -> Option<HMONITOR> {
-        use windows::Win32::Foundation::LPARAM;
-        use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MONITORINFOEXW};
-        
-        struct EnumCtx { 
-            target: String, 
-            result: Option<HMONITOR> 
-        }
-        let mut ctx = EnumCtx { 
-            target: target_name.to_string(), 
-            result: None 
-        };
-
-        unsafe extern "system" fn callback(h_mon: HMONITOR, _: windows::Win32::Graphics::Gdi::HDC, _: *mut windows::Win32::Foundation::RECT, lparam: LPARAM) -> windows::Win32::Foundation::BOOL {
-            let ctx = &mut *(lparam.0 as *mut EnumCtx);
-            let mut mi = MONITORINFOEXW::default();
-            mi.monitorInfo.cbSize = std::mem::size_of::<MONITORINFOEXW>() as u32;
-            if GetMonitorInfoW(h_mon, &mut mi.monitorInfo).as_bool() {
-                let device_name = String::from_utf16_lossy(&mi.szDevice).trim_matches(char::from(0)).to_string();
-                if device_name == ctx.target {
-                    ctx.result = Some(h_mon);
-                    return windows::Win32::Foundation::BOOL(0);  // Match found, stop enumeration.
-                }
-            }
-            windows::Win32::Foundation::BOOL(1)
-        }
-        unsafe { 
-            let _ = windows::Win32::Graphics::Gdi::EnumDisplayMonitors(
-                None, None, Some(callback), 
-                windows::Win32::Foundation::LPARAM(&mut ctx as *mut _ as isize)
-            ); 
-        }
-        ctx.result
+    /// Try to find a device index by matching the device info string.
+    pub fn find_device_index_by_name(&self, target_name: &str) -> Option<usize> {
+        self.devices.iter().position(|i| i.contains(target_name) || target_name.contains(i))
     }
 
-    /// Apply DDC settings to monitor
-    pub fn apply_ddc(&self, h_monitor: isize, brightness: Option<u32>, contrast: Option<u32>, delay: bool) {
-        let _ = self.tx.send(DdcCommand::Apply {
-            h_monitor,
-            brightness,
-            contrast,
-            delay,
-        });
+    /// Apply DDC settings by device index (non-blocking, performed by worker thread)
+    pub fn apply_by_index(&self, idx: usize, brightness: Option<u32>, contrast: Option<u32>, delay: bool) {
+        let _ = self.tx.send(DdcCommand::ApplyByIndex { idx, brightness, contrast, delay });
     }
 }
