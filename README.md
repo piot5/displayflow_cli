@@ -1,6 +1,10 @@
 # Displayflow
 🇯🇵[日本語](./README.ja.md)
 
+[![Build](https://img.shields.io/github/actions/workflow/status/piot5/displayflow_cli/rust_build.yml?branch=main&label=build)](https://github.com/piot5/displayflow_cli/actions)
+[![Release](https://img.shields.io/github/v/release/piot5/displayflow_cli?label=release)](https://github.com/piot5/displayflow_cli/releases)
+[![platform](https://img.shields.io/badge/platform-Windows-0078d6?logo=windows&logoColor=white)]()
+
 [live_displayflow.webm](https://github.com/user-attachments/assets/2143cdee-d8e2-4ba0-a182-f28fd11b05cc)
 
 ## Displayflow
@@ -76,3 +80,15 @@ displayflow.exe "1:2560:1440:0:0:1:0:144:100:80" --save HighFPS --post "start st
  * **Persistent IDs:** Monitors are identified by their hardware signature (synth.rs), so your settings survive a reboot or GPU port swap.
  * **Smart Animation:** If an animation direction is present in the task string, screen_animation.exe is triggered instantly in a background thread to mask the Windows display-driver handshake.
 *If this tool saved you some time, consider leaving a ⭐ - it helps others find the project!*
+
+## ⬇️ Install / Release
+Grab the latest **`displayflow.exe`** from the [Releases page](https://github.com/piot5/displayflow_cli/releases) (a `displayflow.zip` bundle is attached to each tagged release).
+
+```powershell
+# Latest release via GitHub CLI
+gh release download --repo piot5/displayflow_cli --pattern displayflow.zip -D .
+Expand-Archive .\displayflow.zip -DestinationPath .\displayflow
+```
+
+- **Zero Admin** — runs in User Mode, no UAC, no installer.
+- Releases are built automatically from `v*` tags (`Rust Build and Release` workflow).

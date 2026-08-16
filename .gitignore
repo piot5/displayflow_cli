@@ -2,6 +2,8 @@
 Cargo.lock
 /target/
 /release/
+/publish/
+*.zip
 
 # Environment & config files
 .env
