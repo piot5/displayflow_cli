@@ -5,6 +5,9 @@ Cargo.lock
 /publish/
 *.zip
 
+# Compiled binaries (built via CI, from ScreenAnimation release)
+*.exe
+
 # Environment & config files
 .env
 config.toml

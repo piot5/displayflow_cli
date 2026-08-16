@@ -25,6 +25,20 @@ jobs:
       - name: Build Main Binary (displayflow)
         run: cargo build --release
 
+      - name: Fetch animation binary (fallback from ScreenAnimation)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "screen_animation.exe")) {
+            Write-Host "screen_animation.exe nicht im Repo - versuche Download aus ScreenAnimation-Release..."
+            $rel = gh api repos/piot5/ScreenAnimation/releases/latest -q .tag_name 2>$null
+            if ($rel) {
+              gh release download -R piot5/ScreenAnimation --pattern "*.exe" -D . --clobber
+            } else {
+              Write-Host "Kein ScreenAnimation-Release vorhanden - animation binary wird uebersprungen."
+            }
+          }
+          if (Test-Path "screen_animation.exe") { Write-Host "screen_animation.exe bereit." }
+
       - name: Bundle Suite
         shell: pwsh
         run: |
